@@ -268,16 +268,29 @@
 
 /* ---- at a glance ---------------------------------------------------------------- */
 .gl-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
-.gl-side-head { margin: 0 0 4px; color: var(--ink-3); font-size: 11px; }
-.gl-summary { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 16px; font-size: 13.5px; color: var(--ink-2); }
+.gl-side-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; margin: 0 0 10px; font-weight: 400; }
+.gl-side-name { flex: 0 0 100%; margin-bottom: 2px; color: var(--ink-3); font-size: 11px; }
+.gl-big { font-size: clamp(44px, 5vw, 64px); font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.gl-big-unit { font-size: 16px; font-weight: 600; color: var(--ink-2); }
+.gl-bar { display: block; margin: 0 0 10px; border: 1.5px solid var(--ink); background: var(--white); }
+.gl-bar .b2 { fill: var(--forest); }
+.gl-bar .b1 { fill: #7f9a76; }
+.gl-bar .b0 { fill: var(--white); }
+.gl-summary { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 18px; font-size: 13.5px; color: var(--ink-2); }
 .gl-sum { display: inline-flex; align-items: center; gap: 6px; }
 .gl-sum strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.gl-groups { display: flex; flex-wrap: wrap; gap: 22px 30px; align-items: flex-start; }
-.gl-group { flex: none; max-width: 100%; }
-.gl-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+/* A group is a row: its name and count, then its marks, busiest first. */
+.gl-groups { display: grid; grid-template-columns: minmax(0, 1fr); }
+.gl-group { display: grid; grid-template-columns: 172px minmax(0, 1fr); column-gap: 18px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+.gl-side-business .gl-group { grid-template-columns: 148px minmax(0, 1fr); }
+.gl-head { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
+.gl-label { display: block; }
+.gl-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 3px; }
 .gl-count { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink-3); }
 .gl-thin { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--clay); }
-.gl-tiles { display: block; max-width: 100%; height: auto; overflow: visible; }
+.gl-tiles { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+svg.gl-tiles { display: block; max-width: 100%; height: auto; overflow: visible; }
+svg.gl-tile { flex: none; display: block; overflow: visible; }
 .gl-name { font-size: 13.5px; fill: var(--ink); }
 .gl-side-business { padding: 18px 20px 22px; background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
 /* Shade by fill as well as tone: solid, a heavy frame, a thin outline. */
@@ -501,7 +514,7 @@
   .map-stack #selection-body { max-height: none; overflow-y: auto; }
 
   /* At a glance: the defence reference and the business side by side. */
-  .gl-sides { grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); align-items: start; }
+  .gl-sides { grid-template-columns: minmax(0, 1.72fr) minmax(360px, 1fr); align-items: start; }
 }
 
 /* Too narrow for a drawing's columns: who buys and how a job runs become lists. */
@@ -561,5 +574,5 @@
   .map-dock { display: flex; flex-direction: column; gap: 12px; padding: 12px var(--gutter) 0; }
   .map-tools { justify-content: flex-start; }
   .node-list { margin: 12px var(--gutter) 32px; }
-  .gl-groups { gap: 18px; }
+  .gl-group, .gl-side-business .gl-group { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
 }

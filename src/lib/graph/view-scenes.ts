@@ -510,6 +510,12 @@ function shadeSwatch(shade: Shade): SceneEl {
 export function glanceScene(graph: Graph): SceneEl {
   const L = glanceLayout(graph);
   const { tile } = GLANCE_STYLE;
+  const tileParts = (t: GlanceTile) => [
+    h('title', {}, graph.byId.get(t.id)!.name),
+    h('rect', { class: 'hit', x: -2, y: -2, width: tile + 4, height: tile + 4 }),
+    tileShape(t, tile),
+    h('rect', { class: 'ring', x: -3, y: -3, width: tile + 6, height: tile + 6 }),
+  ];
   const group = (g: (typeof L.groups)[number]) =>
     h(
       'section',
@@ -519,24 +525,22 @@ export function glanceScene(graph: Graph): SceneEl {
         { class: 'gl-head' },
         h('span', { class: 'gl-label' }, g.label),
         ' ',
-        h('span', { class: 'gl-count' }, String(g.count)),
-        g.shades[0] && g.count > 1 ? h('span', { class: 'gl-thin' }, `${g.shades[0]} none yet`) : null,
+        h('span', { class: 'gl-meta' }, h('span', { class: 'gl-count' }, String(g.count)), g.shades[0] && g.count > 1 ? h('span', { class: 'gl-thin' }, `${g.shades[0]} none yet`) : null),
       ),
-      h(
-        'svg',
-        { class: 'gl-tiles', xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 ${GLANCE_TOP} ${g.width} ${n1(g.height - GLANCE_TOP)}`, width: g.width, height: n1(g.height - GLANCE_TOP), role: 'group', 'aria-label': `${g.label}: ${g.count} page${g.count === 1 ? '' : 's'}` },
-        g.tiles.map((t) =>
+      g.names.length
+        ? // A named group (the jobs) is one small drawing: each mark with its name beside it.
           h(
-            'g',
-            { class: cls('mk', 'gl-tile', `sh-${t.shade}`, kindClass(t.kind)), 'data-id': t.id, transform: `translate(${t.x} ${t.y})` },
-            h('title', {}, graph.byId.get(t.id)!.name),
-            h('rect', { class: 'hit', x: -2, y: -2, width: tile + 4, height: tile + 4 }),
-            tileShape(t, tile),
-            h('rect', { class: 'ring', x: -3, y: -3, width: tile + 6, height: tile + 6 }),
+            'svg',
+            { class: 'gl-tiles gl-named-tiles', xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 ${GLANCE_TOP} ${g.width} ${n1(g.height - GLANCE_TOP)}`, width: g.width, height: n1(g.height - GLANCE_TOP), role: 'group', 'aria-label': `${g.label}: ${g.count} page${g.count === 1 ? '' : 's'}` },
+            g.tiles.map((t) => h('g', { class: cls('mk', 'gl-tile', `sh-${t.shade}`, kindClass(t.kind)), 'data-id': t.id, transform: `translate(${t.x} ${t.y})` }, tileParts(t))),
+            g.names.map((n) => h('text', { class: 'gl-name', x: n.x, y: n.y }, n.text)),
+          )
+        : // Every other group is a strip of marks, one small drawing each, that wraps at any width.
+          h(
+            'div',
+            { class: 'gl-tiles', role: 'group', 'aria-label': `${g.label}: ${g.count} page${g.count === 1 ? '' : 's'}` },
+            g.tiles.map((t) => h('svg', { class: cls('mk', 'gl-tile', `sh-${t.shade}`, kindClass(t.kind)), xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${tile} ${tile}`, width: tile, height: tile, 'data-id': t.id }, tileParts(t))),
           ),
-        ),
-        g.names.map((n) => h('text', { class: 'gl-name', x: n.x, y: n.y }, n.text)),
-      ),
     );
   const sideBlock = (side: 'defence' | 'business', title: string) => {
     const groups = L.groups.filter((g) => g.side === side);
@@ -545,7 +549,17 @@ export function glanceScene(graph: Graph): SceneEl {
     return h(
       'section',
       { class: `gl-side gl-side-${side}` },
-      h('h3', { class: 'mono gl-side-head' }, `${title} · ${total.toLocaleString('en-GB')} pages`),
+      h('h3', { class: 'gl-side-head' }, h('span', { class: 'mono gl-side-name' }, title), ' ', h('span', { class: 'gl-big' }, total.toLocaleString('en-GB')), ' ', h('span', { class: 'gl-big-unit' }, 'pages')),
+      // The side's shading as one bar: how much of it is joined up.
+      total
+        ? h(
+            'svg',
+            { class: 'gl-bar', xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${total} 10`, preserveAspectRatio: 'none', width: '100%', height: 10, 'aria-hidden': 'true', focusable: 'false' },
+            h('rect', { class: 'b2', x: 0, y: 0, width: shades[2], height: 10 }),
+            h('rect', { class: 'b1', x: shades[2], y: 0, width: shades[1], height: 10 }),
+            h('rect', { class: 'b0', x: shades[2] + shades[1], y: 0, width: shades[0], height: 10 }),
+          )
+        : null,
       h(
         'p',
         { class: 'gl-summary' },

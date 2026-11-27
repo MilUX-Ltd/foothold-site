@@ -40,6 +40,11 @@ export interface RouteState {
   lit: RouteLit;
 }
 
+/** The drawing a mark belongs to: a group's strip of marks at a glance, or the drawing it is part of. */
+function drawingOf(mark: SVGElement): Element | null {
+  return mark.closest('.gl-tiles') ?? mark.ownerSVGElement;
+}
+
 export class Drawings {
   readonly root: HTMLElement;
   private readonly graph: Graph;
@@ -110,9 +115,12 @@ export class Drawings {
     // A page's name on the whole map follows its mark's state.
     for (const el of pane.querySelectorAll<SVGElement>('.lb[data-for]')) add(byId, el.dataset.for!, el);
     // One stop per drawing: the first mark of each takes Tab.
-    for (const svg of pane.querySelectorAll('svg')) {
-      const first = svg.querySelector('.mk[data-id]');
-      if (first) first.setAttribute('tabindex', '0');
+    const stopped = new Set<Element>();
+    for (const mark of marks) {
+      const root = drawingOf(mark);
+      if (!root || stopped.has(root)) continue;
+      stopped.add(root);
+      mark.setAttribute('tabindex', '0');
     }
     for (const el of pane.querySelectorAll<SVGElement>('.ln[data-from]')) {
       add(lines, el.dataset.from!, el);
@@ -120,7 +128,7 @@ export class Drawings {
     }
     for (const el of pane.querySelectorAll<SVGElement>('.band[data-id]')) bands.set(el.dataset.id!, el);
     const routed = [...pane.querySelectorAll('[data-route]')];
-    const roots = [pane, ...pane.querySelectorAll('svg.view-svg, svg.gl-tiles')];
+    const roots = [pane, ...pane.querySelectorAll('svg.view-svg, .gl-tiles')];
     return { byId, lines, routed, bands, marks, roots };
   }
 
@@ -193,8 +201,7 @@ export class Drawings {
     // The selected mark takes the drawing's Tab stop, so Tab returns to it.
     for (const el of ix.byId.get(id) ?? []) {
       if (!(el instanceof SVGElement)) continue;
-      const svg = el.ownerSVGElement;
-      svg?.querySelector('.mk[tabindex="0"]')?.setAttribute('tabindex', '-1');
+      drawingOf(el)?.querySelector('.mk[tabindex="0"]')?.setAttribute('tabindex', '-1');
       el.setAttribute('tabindex', '0');
     }
   }

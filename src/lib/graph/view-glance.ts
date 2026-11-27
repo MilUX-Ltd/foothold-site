@@ -1,8 +1,11 @@
 // At a glance: one mark for every page, grouped and counted, shaded by how
 // many named connections it has. It shows honestly where the pack is thin.
 //
-// Each group is laid out as its own small grid, so the page can set the
-// groups in columns that wrap at any width. The shade is carried by fill as
+// Each group is a row: its name and count on the left, its marks in a strip
+// to the right, busiest first, so a row reads as a bar made of pages and its
+// shading as how much of the group is joined up. The page sets the marks as a
+// strip that wraps at any width; the grid worked out here gives their order
+// and the places of a named group's marks and names (the jobs). The shade is carried by fill as
 // well as tone: solid for five or more named connections, hatched for at
 // least one, an outline for none yet. A mark's shape says what it is: a
 // square for a defence page or a folder, a diamond for a skill, a triangle for
