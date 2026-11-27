@@ -20,8 +20,14 @@ export const SCRIPT_DIR = '_astro/';
 /** Problems in one HTML document. A bundled module from /_astro/ with an empty body is the only script allowed. */
 export function scriptsInHtml(html) {
   const found = [];
-  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
-    const [, attrs, body] = match;
+  // Each opening tag is found on its own, and its body runs to the next "</script" however
+  // that end tag is written: a browser accepts "</script bar>" as readily as "</script>".
+  const lower = html.toLowerCase();
+  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+    const attrs = match[1];
+    const start = match.index + match[0].length;
+    const end = lower.indexOf('</script', start);
+    const body = end === -1 ? html.slice(start) : html.slice(start, end);
     const src = /\bsrc\s*=\s*["']?([^"'\s>]+)/i.exec(attrs)?.[1];
     if (!src || body.trim() !== '') found.push('an inline script');
     else if (!src.startsWith(`/${SCRIPT_DIR}`) || !/\.m?js$/.test(src)) found.push(`a script from outside the bundle: ${src}`);

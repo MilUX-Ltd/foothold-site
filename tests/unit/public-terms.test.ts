@@ -52,6 +52,10 @@ describe('bundle-size check', () => {
     expect(scriptsInHtml('<script type="module">import "/x.js"</script>')).toEqual(['an inline script']);
     expect(scriptsInHtml('<script src="https://cdn.example.com/a.js"></script>')).toEqual(['a script from outside the bundle: https://cdn.example.com/a.js']);
     expect(scriptsInHtml('<script src="/a.js"></script>')).toEqual(['a script from outside the bundle: /a.js']);
+    // an end tag a browser accepts but a strict pattern would miss, and a script never closed
+    expect(scriptsInHtml('<script>alert(1)</script\t\n bar>')).toEqual(['an inline script']);
+    expect(scriptsInHtml('<script>alert(1)</SCRIPT >')).toEqual(['an inline script']);
+    expect(scriptsInHtml('<script>alert(1)')).toEqual(['an inline script']);
     expect(scriptsInHtml('<a href="javascript:void(0)">x</a>')).toEqual(['a javascript: link']);
     expect(scriptsInHtml('<button onclick="go()">x</button>')).toEqual(['an inline event handler']);
   });
