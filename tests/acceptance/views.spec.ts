@@ -40,6 +40,12 @@ async function open(page: Page, path: string) {
   await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
 }
 
+/** Opens the list of every page, which starts folded beside the drawing. */
+async function unfoldList(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Every page on the map', exact: true });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+}
+
 const param = (page: Page, key: string) => new URL(page.url()).searchParams.get(key);
 const switcher = (page: Page) => page.getByRole('group', { name: 'Views of the pack' });
 const viewButton = (page: Page, name: string) => switcher(page).getByRole('button', { name, exact: true });
@@ -127,6 +133,7 @@ test.describe('four views of the pack', () => {
       [OPERATIONS, ['map', 'jobs', 'glance', 'map', 'glance', 'jobs']],
     ] as [string, View[]][]) {
       await open(page, '/map/');
+      await unfoldList(page);
       await page.getByRole('region', { name: 'Every page on the map' }).locator(`button[data-id="${id}"]`).click();
       for (const view of views) {
         if ((await page.locator('#explorer').getAttribute('data-view')) !== view) await choose(page, view);
@@ -297,6 +304,7 @@ test.describe('four views of the pack', () => {
         await choose(page, view);
         expect(await page.evaluate(() => document.getAnimations().length), view).toBe(0);
       }
+      await unfoldList(page);
       const before = await frames();
       await page.getByRole('region', { name: 'Every page on the map' }).locator(`button[data-id="${FRAMEWORK}"]`).click();
       await page.waitForTimeout(150);

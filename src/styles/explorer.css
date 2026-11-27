@@ -479,7 +479,9 @@
   .fade { display: block; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgb(245 244 239 / 97%) 0, rgb(245 244 239 / 92%) var(--lead-right), rgb(245 244 239 / 0%) calc(var(--lead-right) + 120px)); }
   .lead { position: absolute; z-index: 2; left: var(--gutter); top: 50%; transform: translateY(-50%); width: var(--lead-w); max-width: none; padding: 0; }
   .lead, .fade { transition: opacity 0.3s ease, visibility 0s linear 0s; }
-  .explorer[data-state='exploring'] .lead, .explorer[data-state='exploring'] .fade { opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0s linear 0.25s; }
+  /* The headline goes at once, so its button is never left half-faded and unreadable; the wash behind it fades. */
+  .explorer[data-state='exploring'] .lead { opacity: 0; visibility: hidden; transition: none; }
+  .explorer[data-state='exploring'] .fade { opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0s linear 0.25s; }
   .explorer[data-state='landing'] .node-list, .explorer[data-state='landing'] .map-dock, .explorer[data-state='landing'] .view-switch { display: none; }
 
   /* Exploring: the switcher top left, the list beneath it, the controls and panels on the right. */

@@ -53,12 +53,19 @@ test.describe('the home page', () => {
     expect(drawn.right - drawn.left).toBeGreaterThan((canvas.width - lead.width) * 0.5);
   });
 
-  test('6. pressing "Explore the map" hides the headline, focuses the search box and leaves the list reachable by keyboard', async ({ page }) => {
+  test('6. pressing "Explore the map" hides the headline, focuses the button that opens the list and leaves the list reachable by keyboard', async ({ page }) => {
     await openMap(page, '/');
     await page.getByRole('button', { name: 'Explore the map', exact: true }).focus();
     await page.keyboard.press('Enter');
     await expect(headline(page)).toBeHidden();
     await expect(explorer(page)).toHaveAttribute('data-state', 'exploring');
+    // The list starts folded beside the drawing: focus lands on the button that opens it.
+    const toggle = page.getByRole('button', { name: 'Every page on the map', exact: true });
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('searchbox', { name: 'Find a page on the map' })).toBeFocused();
     await page.keyboard.press('Tab');
     const list = page.getByRole('region', { name: 'Every page on the map' });

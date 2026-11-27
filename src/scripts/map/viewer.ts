@@ -136,16 +136,22 @@ export async function startViewer(): Promise<void> {
 
   // ---- landing and exploring ------------------------------------------------
   const isLanding = () => explorer.dataset.state === 'landing';
+  /** Focus goes to the search box, or to the button that opens the list while it is folded. */
+  function focusList() {
+    const toggle = document.getElementById('list-toggle');
+    if (search.offsetParent === null && toggle) toggle.focus();
+    else search.focus();
+  }
   function enterExploring(options: { focusSearch?: boolean } = {}) {
     if (!isLanding()) {
-      if (options.focusSearch) search.focus();
+      if (options.focusSearch) focusList();
       return;
     }
     explorer.dataset.state = 'exploring';
     svg?.classList.remove('drawing');
     if (camera) camera.leading = false;
     updateFreeArea({ animate: true });
-    if (options.focusSearch) search.focus();
+    if (options.focusSearch) focusList();
   }
   document.getElementById('explore')?.addEventListener('click', () => enterExploring({ focusSearch: true }));
 
@@ -176,8 +182,9 @@ export async function startViewer(): Promise<void> {
     });
   }
 
-  // The list's heading becomes the button that folds it away. On a narrower
-  // wide screen it starts folded, so the drawing has the room.
+  // The list's heading becomes the button that folds it away. Beside the
+  // drawing it starts folded, so the drawing has the room; on a phone it sits
+  // beneath the drawing and starts open.
   const listHeading = list.querySelector<HTMLElement>('h2[data-toggles]');
   const listBody = listHeading ? byId<HTMLElement>(listHeading.dataset.toggles!) : null;
   let listToggle: HTMLButtonElement | null = null;
@@ -200,7 +207,7 @@ export async function startViewer(): Promise<void> {
       foldList(button.getAttribute('aria-expanded') !== 'true');
       updateFreeArea({ animate: true });
     });
-    if (window.matchMedia('(min-width: 761px) and (max-width: 1199px)').matches) foldList(false);
+    if (window.matchMedia('(min-width: 761px)').matches) foldList(false);
   }
   const openList = () => {
     enterExploring();

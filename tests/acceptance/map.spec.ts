@@ -26,6 +26,12 @@ async function openMap(page: Page, query = '') {
   if (query.includes('view=network')) await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
 }
 
+/** Opens the list of every page, which starts folded beside the drawing. */
+async function unfoldList(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Every page on the map', exact: true });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+}
+
 const stateParam = (page: Page, key: string) => new URL(page.url()).searchParams.get(key);
 
 test.describe('the map page', () => {
@@ -43,6 +49,7 @@ test.describe('the map page', () => {
 
   test('8. choosing a node in the list by keyboard alone selects it, lists its connections and puts it in the address', async ({ page }) => {
     await openMap(page);
+    await unfoldList(page);
     const search = page.getByRole('searchbox', { name: 'Find a page on the map' });
     await search.focus();
     await page.keyboard.type('Supplier');
@@ -119,6 +126,7 @@ test.describe('the map page', () => {
       await openMap(page, '?view=network');
       const canvas = page.locator('#map-canvas');
       await expect(canvas).toHaveAttribute('data-motion', 'reduced');
+      await unfoldList(page);
       const frames = async () => Number(await canvas.getAttribute('data-frames'));
       const before = await frames();
       await page.locator(`button[data-id="${FRAMEWORK}"]`).click();
