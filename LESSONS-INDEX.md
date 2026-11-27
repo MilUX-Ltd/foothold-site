@@ -12,3 +12,6 @@
 | 2026-11-27 | Data ref | `main` of the pack may not hold the file yet; name a ref |
 | 2026-11-27 | Guards | A guard's own source must not match its own patterns |
 | 2026-11-27 | npm | npm 12 reports install scripts as blocked; check the build before approving any |
+| 2026-11-27 | Map layout | Cross-layer edges pull the two regions into each other; a wall keeps them apart |
+| 2026-11-27 | Page script | A page `<script>` builds to an external module in `/_astro/` here; check the built HTML |
+| 2026-11-27 | Map panels | A hub node lists dozens of connections; cap and scroll the panels or the map leaves the screen |

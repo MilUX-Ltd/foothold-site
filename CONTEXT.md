@@ -19,6 +19,11 @@
 - **Edge origin**: where the author wrote the edge: `field` (a frontmatter field), `path` (where the page sits), `body` (a link in the text), `skill` (a skill's declarations), `folder` (a folder's own record) or `route` (a route's steps).
 - **Route**: a job that takes more than one skill, as an ordered list of steps. Routes are data in the pack; the site only draws them.
 - **Step**: one entry in a route: the skill to use (`skill`, with `skill_id` pointing at its node) and a sentence saying what it does (`does`).
+- **Map page**: `/map/`, the pack drawn as one map with two regions, the defence layer on the left and the business layer on the right, joined by the edges that cross between them (pages filed in folders). The same nodes are listed in text on the page, grouped by kind, so the map is never the only way in.
+- **Layout**: the position of every node on the map, settled at build time by a seeded force simulation (`src/lib/graph/layout.ts`) and shipped in `/map/graph.json`. The same map file gives the same positions on every build.
+- **Path**: the shortest chain of edges between two chosen nodes, following edges in either direction. Not to be confused with a node's `path` field (where the page sits in the pack) or a **route** (a job the pack defines).
+- **Connections**: a node's edges, grouped by type, with edges leaving the node kept apart from edges arriving at it.
+- **View state**: what the map page holds in its address so a view can be shared: `node` (the selected node's id), `from` and `to` (the ends of a path) and `view` (`2d`, the default, or `3d`). Ids the map does not hold are ignored.
 - **Connector**: a read-only service, planned for a later card, that lets a person's own AI tool look things up in the map. It returns structured fields from the map file and never skill files or instructions. See `docs/adr/0005-a-read-only-connector-with-no-model-behind-it.md`.
 - **Fixture**: a small hand-made map file in `tests/fixtures/` that tests and CI build from, so they never touch the network.
 
@@ -56,6 +61,10 @@ An edge has `from` and `to` (node ids), `type` and `origin`. A route has `id`, `
 ### Version rule
 
 The site accepts major version 1 of `schema_version`. Minor and patch changes to the file add things the site ignores or already allows. **A major change to `schema_version` must be met by a change to this file, to `src/lib/map-schema.mjs` and to the pages in the same release**, so the site and the pack never disagree about the shape of the data. Until then the build refuses the new file rather than guess.
+
+### What the map page reads
+
+The map page builds its list, legend and path choices from the checked file at build time. Its viewer fetches `/map/graph.json`, which the build writes from the same checked file: each node's `id`, `name`, `kind`, `layer` and position, and each edge's ends and `type`. No other field reaches the browser through it. Edge types the viewer has no style for are drawn with a plain dashed line and still listed.
 
 ### What the site shows
 

@@ -4,11 +4,11 @@ The website for [Foothold](https://github.com/MilUX-Ltd/foothold), a free pack o
 
 The pack describes itself as a map: a defence layer (organisations, programmes, frameworks, portals, events, networks and clusters), a business layer (the pack's folders and skills, with what each skill reads and writes) and routes (jobs that take several skills in order). This site draws that map. This repository holds only the site; the pack stays the single source of truth.
 
-**Status: walking skeleton (0.1.0).** One page, built from the real data, with the tests, checks, pipeline and security headers every later change follows. The map itself, the connector and analytics are later cards. Nothing is deployed yet.
+**Status: early build (0.1.0, unreleased).** A home page and the map page (`/map/`), built from the real data, with the tests, checks, pipeline and security headers every later change follows. The job routes on the map, the connector and analytics are later cards. Nothing is deployed yet.
 
 ## How it is built
 
-A static Astro site, TypeScript, Vitest, and Playwright with axe, served by a Cloudflare Worker that serves static assets. No client-side JavaScript yet. The reasoning is in [`docs/adr/`](docs/adr/); the security thinking is in [`docs/security/threat-model.md`](docs/security/threat-model.md).
+A static Astro site, TypeScript, Vitest, and Playwright with axe, served by a Cloudflare Worker that serves static assets. The map page runs one small bundled script, with no third-party code; every other page runs none. The map's layout is worked out when the site is built and shipped as a static file next to the page. The reasoning is in [`docs/adr/`](docs/adr/); the security thinking is in [`docs/security/threat-model.md`](docs/security/threat-model.md).
 
 It was built with AI, using MilUX's agentic engineering method: decisions recorded first, tests written before code, and every change through a pipeline and human review. To know more, get in touch at contact@milux.co.uk.
 
@@ -33,6 +33,8 @@ FOOTHOLD_DATA_SOURCE=fixture npm run build
 npm run check:public      # after a build, so the built site is checked too
 npm run test:e2e          # builds from the fixture and starts a preview server
 ```
+
+The browser tests are in `tests/e2e/` and `tests/acceptance/`; the unit tests in `tests/unit/`. The build prints how long the map layout took, and the bundle-size check prints the compressed size of the script.
 
 The end-to-end tests need a Playwright browser: `npx playwright install chromium`.
 

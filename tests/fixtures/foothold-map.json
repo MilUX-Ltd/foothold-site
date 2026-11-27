@@ -123,6 +123,13 @@
  ],
  "nodes": [
   {
+   "id": ".",
+   "kind": "vault",
+   "layer": "business",
+   "name": "The whole vault",
+   "path": "."
+  },
+  {
    "guide": "CRM/CRM Guide.md",
    "id": "CRM",
    "kind": "folder",

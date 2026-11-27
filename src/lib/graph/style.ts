@@ -1,0 +1,90 @@
+// How the map draws things, as literal values. A canvas cannot read CSS custom
+// properties (a font or colour string holding var() is silently ignored), so
+// colours, weights and sizes for drawing live here as plain values, taken from
+// the site's palette in src/styles/base.css. The page's legend reads the same
+// values, so the key and the drawing cannot drift apart.
+//
+// Nothing relies on colour alone: layers differ by shape (filled marks for the
+// defence reference, outlined marks for the business structure) and edge types
+// by dash pattern and weight.
+
+export const PALETTE = {
+  paper: '#f5f4ef',
+  white: '#ffffff',
+  ink: '#0c1510',
+  ink2: '#3f4a42',
+  ink3: '#5f6a62',
+  line: '#d9d8ce',
+  forest: '#113308',
+  clay: '#a35c17',
+  signal: '#e2611c',
+  rust: '#8a2b0a',
+  /** A tint for the region behind each layer. */
+  regionDefence: '#ebeadf',
+  regionBusiness: '#ffffff',
+} as const;
+
+/** The canvas font. Literal, because a canvas font string ignores var(). */
+export const FONT = 'Manrope, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+export type Shape = 'circle' | 'square' | 'diamond' | 'triangle' | 'hexagon';
+
+export interface KindStyle {
+  colour: string;
+  shape: Shape;
+}
+
+const KIND_STYLES: Record<string, KindStyle> = {
+  // Defence reference: filled circles.
+  organisation: { colour: PALETTE.forest, shape: 'circle' },
+  programme: { colour: PALETTE.clay, shape: 'circle' },
+  framework: { colour: PALETTE.ink2, shape: 'circle' },
+  portal: { colour: PALETTE.rust, shape: 'circle' },
+  'event-series': { colour: PALETTE.signal, shape: 'circle' },
+  network: { colour: PALETTE.ink3, shape: 'circle' },
+  cluster: { colour: '#3d6b2c', shape: 'circle' },
+  'example-business': { colour: PALETTE.ink, shape: 'circle' },
+  // Business structure: outlined shapes on white.
+  folder: { colour: PALETTE.forest, shape: 'square' },
+  skill: { colour: PALETTE.clay, shape: 'diamond' },
+  route: { colour: PALETTE.rust, shape: 'triangle' },
+  vault: { colour: PALETTE.ink, shape: 'hexagon' },
+};
+
+export function kindStyle(kind: string, layer: 'defence' | 'business'): KindStyle {
+  return KIND_STYLES[kind] ?? { colour: PALETTE.ink3, shape: layer === 'defence' ? 'circle' : 'square' };
+}
+
+export interface EdgeStyle {
+  colour: string;
+  /** Line width in screen pixels. */
+  width: number;
+  /** Canvas dash pattern; empty for a solid line. */
+  dash: number[];
+}
+
+const EDGE_STYLES: Record<string, EdgeStyle> = {
+  parent: { colour: PALETTE.ink2, width: 1.6, dash: [] },
+  in_folder: { colour: '#8d968e', width: 0.8, dash: [1.5, 3] },
+  mentions: { colour: PALETTE.ink3, width: 0.8, dash: [] },
+  customer: { colour: PALETTE.forest, width: 1.6, dash: [8, 3] },
+  operator: { colour: PALETTE.forest, width: 1.6, dash: [2, 2] },
+  service: { colour: PALETTE.forest, width: 1.6, dash: [8, 3, 2, 3] },
+  member_of: { colour: PALETTE.ink2, width: 1.2, dash: [5, 5] },
+  listed_on: { colour: PALETTE.ink2, width: 1.2, dash: [1, 4] },
+  reads: { colour: PALETTE.clay, width: 1.4, dash: [6, 4] },
+  writes: { colour: PALETTE.clay, width: 2.2, dash: [] },
+  step: { colour: PALETTE.rust, width: 2.2, dash: [10, 4] },
+};
+
+export function edgeStyle(type: string): EdgeStyle {
+  return EDGE_STYLES[type] ?? { colour: PALETTE.ink3, width: 1, dash: [4, 4] };
+}
+
+/** The highlighted path: heavier than any edge type, in the accent. */
+export const PATH_STYLE: EdgeStyle = { colour: PALETTE.signal, width: 4, dash: [] };
+
+/** A node's size in map units, from how many edges it has. */
+export function nodeRadius(degree: number): number {
+  return 5 + Math.min(Math.sqrt(degree) * 2.4, 19);
+}

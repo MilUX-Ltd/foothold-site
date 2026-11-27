@@ -38,9 +38,14 @@ describe('security headers baseline', () => {
     expect(csp).not.toMatch(/https?:/);
     expect(csp).not.toContain('*');
   });
-  it('allows no script', () => {
-    expect(directives['script-src']).toEqual(["'none'"]);
-    expect(directives['connect-src']).toEqual(["'none'"]);
+  it('allows script and data requests from this site only', () => {
+    expect(directives['script-src']).toEqual(["'self'"]);
+    expect(directives['connect-src']).toEqual(["'self'"]);
+  });
+  it('allows nothing else the map does not need', () => {
+    expect(directives['worker-src']).toBeUndefined();
+    expect(directives['frame-src']).toBeUndefined();
+    expect(directives['media-src']).toBeUndefined();
   });
   it('allows styles, images and fonts from this site only', () => {
     expect(directives['style-src']).toEqual(["'self'"]);
