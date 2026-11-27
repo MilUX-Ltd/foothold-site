@@ -1,0 +1,194 @@
+# Foothold site pipeline: lint, type check, unit tests, a build in fixture mode,
+# the public-terms guard, the bundle-size check and the accessibility floor on
+# every pull request and every push to main. A red check blocks merge (branch
+# protection on main requires the "All checks" job).
+#
+# Deploys are switched off until the repository variable DEPLOY_ENABLED is set to
+# "true". While it is not, every deploy step is skipped, no secret is read and the
+# pipeline is green on its own. When it is on: pull requests deploy a preview and
+# pushes to main deploy to production, each followed by a header and smoke check
+# against the deployed URL.
+#
+# A daily scheduled rebuild will go here in a later card, so a merge to the pack
+# reaches the live site by the next morning:
+#   schedule:
+#     - cron: '30 5 * * *'
+# It needs the deploy-production job to accept the schedule event as well as push.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
+  build:
+    name: Build (fixture), public-terms guard, bundle size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build from the fixture
+        run: npm run build
+        env:
+          FOOTHOLD_DATA_SOURCE: fixture
+      - name: Bundle-size check
+        run: node scripts/check-bundle-size.mjs
+      - name: Public-terms guard (repository and built site)
+        run: npm run check:public
+
+  e2e:
+    name: Journeys and accessibility (Playwright, axe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      # The Playwright config builds from the fixture and starts the preview server itself.
+      - run: npm run test:e2e
+
+  checks:
+    name: All checks
+    if: always()
+    needs: [lint, typecheck, unit, build, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case "$RESULTS" in
+            *failure*|*cancelled*|*skipped*) exit 1 ;;
+          esac
+
+  deploy-preview:
+    name: Preview deploy (pull request)
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: vars.DEPLOY_ENABLED == 'true'
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: vars.DEPLOY_ENABLED == 'true'
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: npm ci
+      - name: Build
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: npm run build
+      - name: Deploy pull request preview
+        if: vars.DEPLOY_ENABLED == 'true'
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
+        run: |
+          npx wrangler preview --name "$PREVIEW_NAME" --ignore-base-config | tee upload.log
+          url=$(grep -Eo 'https://[a-z0-9-]+-foothold-site[a-z0-9.-]*\.workers\.dev' upload.log | head -1)
+          if [ -z "$url" ]; then
+            echo "Could not extract the preview URL from wrangler output; failing rather than skipping the deploy check." >&2
+            exit 1
+          fi
+          echo "preview-url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check headers and smoke on the preview URL
+        if: vars.DEPLOY_ENABLED == 'true' && steps.upload.outputs.preview-url != ''
+        run: node scripts/check-deploy.mjs "${{ steps.upload.outputs.preview-url }}"
+
+  deploy-production:
+    name: Production deploy (main)
+    if: vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # One production deploy at a time, in order, so a slower run cannot finish
+    # after a newer push and roll it back.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: vars.DEPLOY_ENABLED == 'true'
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: vars.DEPLOY_ENABLED == 'true'
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: npm ci
+      - name: Build
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: npm run build
+      - name: Deploy to production
+        if: vars.DEPLOY_ENABLED == 'true'
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler deploy | tee deploy.log
+          url=$(grep -Eo 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$url" ]; then
+            echo "Could not extract the production URL from wrangler output; failing rather than skipping the deploy check." >&2
+            exit 1
+          fi
+          echo "production-url=$url" >> "$GITHUB_OUTPUT"
+          echo "Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check headers and smoke on the production URL
+        if: vars.DEPLOY_ENABLED == 'true' && steps.deploy.outputs.production-url != ''
+        run: node scripts/check-deploy.mjs "${{ steps.deploy.outputs.production-url }}"
+      # The custom-domain check (foothold.milux.co.uk) comes with the card that binds the domain.

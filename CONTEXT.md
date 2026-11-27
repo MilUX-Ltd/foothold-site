@@ -1,0 +1,62 @@
+# Foothold site: domain language and the data contract
+
+## Glossary
+
+- **Pack**: Foothold itself, the free set of markdown notes and AI skills that a founder installs. It lives in the public repository `MilUX-Ltd/foothold` and is the single source of truth. The site is a view of it.
+- **Map**: the pack described as data: nodes, edges and routes in one file, `data/foothold-map.json`, built and checked by the pack repository.
+- **Defence layer**: the part of the map that describes the defence world: organisations, programmes, frameworks, portals, event series, networks and clusters, and the connections between them. Reference material, not the user's own business.
+- **Business layer**: the part of the map that describes the pack's own structure: its folders and skills, and what each skill reads and writes. This is where a business puts itself on the map.
+- **Node**: one thing on the map. Each has an `id`, a `layer` (`defence` or `business`), a `kind`, a `name` and a `path` in the pack, and sometimes more (see the contract below).
+- **Kind**: the sort of node. Seen so far: `organisation`, `programme`, `framework`, `portal`, `event-series`, `network`, `cluster`, `example-business` (the pack's own worked example) in the defence layer; `folder`, `skill`, `route`, `vault` in the business layer. The site accepts any kind except `contact`.
+- **Edge**: a named connection from one node to another, with a `type` and an `origin`. Every edge is one an author wrote; none is inferred.
+- **Edge types**:
+  - `parent`: a folder to the folder that contains it.
+  - `in_folder`: a page to the folder it sits in.
+  - `mentions`: a page that links to another in its text.
+  - `customer`, `operator`, `service`: relationships a framework or programme states about the organisations and services it involves.
+  - `reads`, `writes`: a skill to a folder it reads from or files into.
+  - `step`: a route to a skill it uses.
+- **Edge origin**: where the author wrote the edge: `field` (a frontmatter field), `path` (where the page sits), `body` (a link in the text), `skill` (a skill's declarations), `folder` (a folder's own record) or `route` (a route's steps).
+- **Route**: a job that takes more than one skill, as an ordered list of steps. Routes are data in the pack; the site only draws them.
+- **Step**: one entry in a route: the skill to use (`skill`, with `skill_id` pointing at its node) and a sentence saying what it does (`does`).
+- **Connector**: a read-only service, planned for a later card, that lets a person's own AI tool look things up in the map. It returns structured fields from the map file and never skill files or instructions. See `docs/adr/0005-a-read-only-connector-with-no-model-behind-it.md`.
+- **Fixture**: a small hand-made map file in `tests/fixtures/` that tests and CI build from, so they never touch the network.
+
+## The data contract
+
+### Where the file comes from
+
+`scripts/fetch-data.mjs` fetches `https://raw.githubusercontent.com/MilUX-Ltd/foothold/<ref>/data/foothold-map.json`, where `<ref>` is the environment variable `FOOTHOLD_DATA_REF` (default `main`). With `FOOTHOLD_DATA_SOURCE=fixture` it reads `tests/fixtures/foothold-map.json` and touches no network. It checks the file with `src/lib/map-schema.mjs` and writes the checked copy to `.foothold/foothold-map.json` (not committed), which the build reads. A file that fails the check stops the build with a clear message and a non-zero exit.
+
+### Fields
+
+The file has five top-level keys:
+
+| Key | Meaning |
+|---|---|
+| `schema_version` | The version of this contract, as `major.minor.patch`. |
+| `pack_version` | The version of the pack the file was built from. |
+| `nodes` | The list of nodes. |
+| `edges` | The list of edges. |
+| `routes` | The list of routes. |
+
+A node always has `id`, `layer`, `kind`, `name` and `path`. It may have `acronym`, `abbreviation`, `status`, `category`, `website`, `region`, `audience`, `description` and `guide` (text), and `service` (a list of text). Any other field is dropped when the file is checked, so the site only ever holds fields named here.
+
+An edge has `from` and `to` (node ids), `type` and `origin`. A route has `id`, `name` and `steps`; each step has `skill`, `skill_id` and `does`.
+
+### What the check refuses
+
+- A malformed file, or one missing a top-level key or a required field.
+- A node of kind `contact`.
+- A node whose keys include `email`, `phone`, `linkedin`, `led_by`, `role`, `lawful_basis` or `organisation`.
+- Two nodes with the same id.
+- An edge whose `from` or `to` is not a node, or a route step whose `skill_id` is not a node.
+- A `schema_version` whose major version is not 1.
+
+### Version rule
+
+The site accepts major version 1 of `schema_version`. Minor and patch changes to the file add things the site ignores or already allows. **A major change to `schema_version` must be met by a change to this file, to `src/lib/map-schema.mjs` and to the pages in the same release**, so the site and the pack never disagree about the shape of the data. Until then the build refuses the new file rather than guess.
+
+### What the site shows
+
+The site shows only what the pack contains. It shows no organisation, programme, skill or route that is not in the map file, no person, and no content written into the site that an install of the pack lacks, other than the pages that explain the site itself. Counts, names and step text on a page are drawn from the file at build time; nothing is typed in by hand.

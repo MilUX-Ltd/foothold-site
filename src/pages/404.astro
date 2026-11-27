@@ -1,0 +1,15 @@
+---
+// The page for an address that does not exist. Static, no script.
+import Base from '../layouts/Base.astro';
+---
+<Base title="Page not found: Foothold" description="This page does not exist." canonical={false}>
+  <header class="page-hero not-found">
+    <p class="mono kicker">Error</p>
+    <h1>
+      <span class="not-found-code">404<span class="stop">.</span></span>
+      Page not found
+    </h1>
+    <p class="lede">If you typed the address, check it is correct. Otherwise the page may have moved.</p>
+    <p><a class="btn btn-primary btn-lg" href="/">Back to the Foothold home page</a></p>
+  </header>
+</Base>

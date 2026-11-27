@@ -1,0 +1,16 @@
+// Cloudflare Workers static assets (docs/adr/0002): a Worker that serves ./dist
+// and runs no code of its own. No routes, no bindings and no custom domain yet.
+// Deploys run from the pipeline only, and only once deploys are switched on.
+//
+// The connector route (/mcp, docs/adr/0005) comes in a later card, with the Worker
+// code, its rate limit and the custom domain foothold.milux.co.uk.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "foothold-site",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}

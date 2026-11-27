@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.foothold/
+playwright-report/
+test-results/
+.env
+.env.*
+.dev.vars
+.DS_Store
+.claude/hooks/UNLOCK
+.claude/hooks/guard.log
+.claude/settings.local.json
+__pycache__/

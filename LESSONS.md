@@ -1,0 +1,17 @@
+# Lessons
+
+Read at the start of every session. Add a dated entry when something surprised you or cost time. Curated monthly: recurring lessons graduate into `CLAUDE.md` or an ADR. The first six carry over from the Tally site, which shares this stack; the rest were found building this one.
+
+## 2026-11-27
+
+- Repository created public. Anything written here is published; check the "What never goes in this repo" list in `CLAUDE.md` before every commit. `npm run check:public` catches decision-log ids, card references, private vault paths, home paths and em-dashes, but not names or secrets: read your own diff for those.
+- A lockfile made with `npm install` on macOS can leave out optional packages that Linux needs, and `npm ci` then fails in CI. If CI reports "Missing: ... from lock file", delete `node_modules` and `package-lock.json`, run a clean `npm install`, and commit the new lockfile. This repository's lockfile was generated fresh, not copied.
+- A content security policy without `unsafe-inline` blocks inline script and style, so a framework feature that injects either (island directives and similar loaders) silently does nothing. Mount interactive code from a bundled module, and run the dev and preview servers with the production headers so journey tests catch it. Here the policy is stricter still: no script at all, until a card asks for one.
+- `astro preview` moves itself to the background when it detects a coding agent, and Playwright then reports that the web server exited early. The test server runs with `--ignore-lock` to stay in the foreground.
+- Another checkout of a sibling repository, or another agent, may already be serving on the Playwright port, and with `reuseExistingServer` locally the tests then run against the wrong build. Check `lsof -iTCP:4341` first. This repository uses port 4341, not the sibling's.
+- A first deploy of a new Worker can return 404 for a few seconds while it propagates. The deploy check retries a 404 for up to a minute before failing.
+- The dev server (`astro dev`) adds an inline style tag and module scripts for every page. The production policy blocks both, so the dev page can look unstyled and logs policy errors. This is the policy working, not a bug. Judge looks and tests on `npm run build && npm run preview`, which serve the real built files.
+- The first run against the real data file refused it: `service` is a list of text in the pack's file, but the hand-made fixture had it as text. A fixture written from memory of a schema will agree with the schema and miss the real file. Run the build against the real file (`FOOTHOLD_DATA_REF=<ref> npm run build`) whenever the schema or the fixture changes.
+- The build step defaults to `FOOTHOLD_DATA_REF=main`. If the pack's main branch does not yet hold `data/foothold-map.json` the fetch answers 404 and the build stops, by design. Name a branch or tag that has the file, or use the fixture.
+- A check that searches for patterns will match its own source. The public-terms guard's vault-path rule is written as `agent-con[f]ig` so the guard does not trip on itself, and its tests build their sample strings from parts. Run the guard over its own repository after any change to it.
+- npm 12 prints a warning that some packages' install scripts were blocked (esbuild, workerd, fsevents). The build, the tests and the type check all pass without them. Do not approve the scripts to silence the warning; check first that something fails without them.

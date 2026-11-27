@@ -1,0 +1,40 @@
+{
+  "name": "foothold-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foothold: the site that draws the Foothold pack as a map",
+  "license": "CC-BY-NC-4.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/fetch-data.mjs && astro dev",
+    "build": "node scripts/fetch-data.mjs && astro build && node scripts/check-bundle-size.mjs",
+    "preview": "astro preview",
+    "lint": "eslint .",
+    "typecheck": "astro check",
+    "check:public": "node scripts/check-public-terms.mjs",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "data": "node scripts/fetch-data.mjs"
+  },
+  "dependencies": {
+    "astro": "7.4.13",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@types/node": "26.1.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-astro": "2.1.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "4.1.12",
+    "wrangler": "4.165.0"
+  }
+}

@@ -1,0 +1,302 @@
+{
+ "edges": [
+  {
+   "from": "CRM/networks/Example Regional Defence Cluster",
+   "origin": "path",
+   "to": "CRM",
+   "type": "in_folder"
+  },
+  {
+   "from": "CRM/organisations/mod/Ministry of Defence",
+   "origin": "path",
+   "to": "CRM",
+   "type": "in_folder"
+  },
+  {
+   "from": "Customer Engagements",
+   "origin": "folder",
+   "to": "Operations",
+   "type": "parent"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework",
+   "origin": "field",
+   "to": "CRM/organisations/mod/Defence Science and Technology Laboratory",
+   "type": "operator"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework",
+   "origin": "field",
+   "to": "CRM/organisations/mod/Ministry of Defence",
+   "type": "customer"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework",
+   "origin": "body",
+   "to": "Intelligence/defence-landscape/Portals/Find a Tender",
+   "type": "mentions"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Programmes/Example Innovation Programme",
+   "origin": "body",
+   "to": "CRM/organisations/mod/Defence Science and Technology Laboratory",
+   "type": "mentions"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Programmes/Example Innovation Programme",
+   "origin": "field",
+   "to": "CRM/organisations/mod/Ministry of Defence",
+   "type": "service"
+  },
+  {
+   "from": "Intelligence/defence-landscape/Programmes/Example Innovation Programme",
+   "origin": "body",
+   "to": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework",
+   "type": "mentions"
+  },
+  {
+   "from": "Intelligence/events/Example Defence Expo/About Example Defence Expo",
+   "origin": "body",
+   "to": "CRM/networks/Example Regional Defence Cluster",
+   "type": "mentions"
+  },
+  {
+   "from": "Skills/Routes/A customer asks about your data handling",
+   "origin": "route",
+   "to": "Skills/business-skills/build-dpia",
+   "type": "step"
+  },
+  {
+   "from": "Skills/Routes/A customer asks about your data handling",
+   "origin": "route",
+   "to": "Skills/business-skills/cyber-essentials-ready",
+   "type": "step"
+  },
+  {
+   "from": "Skills/Routes/A tender lands",
+   "origin": "route",
+   "to": "Skills/business-skills/bid-response",
+   "type": "step"
+  },
+  {
+   "from": "Skills/Routes/A tender lands",
+   "origin": "route",
+   "to": "Skills/business-skills/build-dpia",
+   "type": "step"
+  },
+  {
+   "from": "Skills/Routes/A tender lands",
+   "origin": "route",
+   "to": "Skills/business-skills/cyber-essentials-ready",
+   "type": "step"
+  },
+  {
+   "from": "Skills/business-skills/bid-response",
+   "origin": "skill",
+   "to": "Customer Engagements",
+   "type": "writes"
+  },
+  {
+   "from": "Skills/business-skills/bid-response",
+   "origin": "skill",
+   "to": "Operations",
+   "type": "reads"
+  },
+  {
+   "from": "Skills/business-skills/build-dpia",
+   "origin": "skill",
+   "to": "Operations",
+   "type": "reads"
+  },
+  {
+   "from": "Skills/business-skills/build-dpia",
+   "origin": "skill",
+   "to": "Operations",
+   "type": "writes"
+  },
+  {
+   "from": "Skills/business-skills/cyber-essentials-ready",
+   "origin": "skill",
+   "to": "Operations",
+   "type": "writes"
+  }
+ ],
+ "nodes": [
+  {
+   "guide": "CRM/CRM Guide.md",
+   "id": "CRM",
+   "kind": "folder",
+   "layer": "business",
+   "name": "CRM",
+   "path": "CRM"
+  },
+  {
+   "abbreviation": "ERDC",
+   "id": "CRM/networks/Example Regional Defence Cluster",
+   "kind": "cluster",
+   "layer": "defence",
+   "name": "Example Regional Defence Cluster",
+   "path": "CRM/networks/Example Regional Defence Cluster.md",
+   "region": "Example Region",
+   "status": "active"
+  },
+  {
+   "acronym": "Dstl",
+   "category": "government",
+   "id": "CRM/organisations/mod/Defence Science and Technology Laboratory",
+   "kind": "organisation",
+   "layer": "defence",
+   "name": "Defence Science and Technology Laboratory",
+   "path": "CRM/organisations/mod/Defence Science and Technology Laboratory.md",
+   "status": "active",
+   "website": "https://www.gov.uk/government/organisations/defence-science-and-technology-laboratory"
+  },
+  {
+   "category": "government",
+   "id": "CRM/organisations/mod/Ministry of Defence",
+   "kind": "organisation",
+   "layer": "defence",
+   "name": "Ministry of Defence",
+   "path": "CRM/organisations/mod/Ministry of Defence.md",
+   "status": "active",
+   "website": "https://www.gov.uk/government/organisations/ministry-of-defence"
+  },
+  {
+   "guide": "Customer Engagements/Customer Engagements Guide.md",
+   "id": "Customer Engagements",
+   "kind": "folder",
+   "layer": "business",
+   "name": "Customer Engagements",
+   "path": "Customer Engagements"
+  },
+  {
+   "category": "commercial",
+   "id": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework",
+   "kind": "framework",
+   "layer": "defence",
+   "name": "Example Supplier Framework",
+   "path": "Intelligence/defence-landscape/Frameworks/Example Supplier Framework.md",
+   "status": "active"
+  },
+  {
+   "audience": "Suppliers to UK public sector contracting authorities",
+   "id": "Intelligence/defence-landscape/Portals/Find a Tender",
+   "kind": "portal",
+   "layer": "defence",
+   "name": "Find a Tender",
+   "path": "Intelligence/defence-landscape/Portals/Find a Tender.md",
+   "status": "active",
+   "website": "https://www.gov.uk/find-a-tender"
+  },
+  {
+   "category": "innovation",
+   "id": "Intelligence/defence-landscape/Programmes/Example Innovation Programme",
+   "kind": "programme",
+   "layer": "defence",
+   "name": "Example Innovation Programme",
+   "path": "Intelligence/defence-landscape/Programmes/Example Innovation Programme.md",
+   "service": [
+    "Joint"
+   ],
+   "status": "active"
+  },
+  {
+   "id": "Intelligence/events/Example Defence Expo/About Example Defence Expo",
+   "kind": "event-series",
+   "layer": "defence",
+   "name": "Example Defence Expo",
+   "path": "Intelligence/events/Example Defence Expo/About Example Defence Expo.md",
+   "status": "active"
+  },
+  {
+   "guide": "Operations/Operations Guide.md",
+   "id": "Operations",
+   "kind": "folder",
+   "layer": "business",
+   "name": "Operations",
+   "path": "Operations"
+  },
+  {
+   "id": "Skills/Routes/A customer asks about your data handling",
+   "kind": "route",
+   "layer": "business",
+   "name": "A customer asks about your data handling",
+   "path": "Skills/Routes/A customer asks about your data handling.md"
+  },
+  {
+   "id": "Skills/Routes/A tender lands",
+   "kind": "route",
+   "layer": "business",
+   "name": "A tender lands",
+   "path": "Skills/Routes/A tender lands.md"
+  },
+  {
+   "category": "business-skills",
+   "description": "Drafts a response to a tender from your capabilities and past engagements.",
+   "id": "Skills/business-skills/bid-response",
+   "kind": "skill",
+   "layer": "business",
+   "name": "bid-response",
+   "path": "Skills/business-skills/bid-response/SKILL.md"
+  },
+  {
+   "category": "business-skills",
+   "description": "Builds a data protection impact assessment from what the vault already says about the data you hold.",
+   "id": "Skills/business-skills/build-dpia",
+   "kind": "skill",
+   "layer": "business",
+   "name": "build-dpia",
+   "path": "Skills/business-skills/build-dpia/SKILL.md"
+  },
+  {
+   "category": "business-skills",
+   "description": "Walks through the Cyber Essentials controls and records the evidence.",
+   "id": "Skills/business-skills/cyber-essentials-ready",
+   "kind": "skill",
+   "layer": "business",
+   "name": "cyber-essentials-ready",
+   "path": "Skills/business-skills/cyber-essentials-ready/SKILL.md"
+  }
+ ],
+ "pack_version": "0.0.0",
+ "routes": [
+  {
+   "id": "Skills/Routes/A customer asks about your data handling",
+   "name": "A customer asks about your data handling",
+   "steps": [
+    {
+     "does": "Builds a data protection impact assessment from what your vault already says about the data you hold. Writes it into Operations.",
+     "skill": "build-dpia",
+     "skill_id": "Skills/business-skills/build-dpia"
+    },
+    {
+     "does": "Walks you through the Cyber Essentials controls and records the evidence in Operations.",
+     "skill": "cyber-essentials-ready",
+     "skill_id": "Skills/business-skills/cyber-essentials-ready"
+    }
+   ]
+  },
+  {
+   "id": "Skills/Routes/A tender lands",
+   "name": "A tender lands",
+   "steps": [
+    {
+     "does": "Drafts a response to the tender from your capabilities, reading Operations and filing the draft in Customer Engagements.",
+     "skill": "bid-response",
+     "skill_id": "Skills/business-skills/bid-response"
+    },
+    {
+     "does": "Checks the security controls the tender asks about and records the evidence.",
+     "skill": "cyber-essentials-ready",
+     "skill_id": "Skills/business-skills/cyber-essentials-ready"
+    },
+    {
+     "does": "Prepares the data protection assessment the buyer will ask to see.",
+     "skill": "build-dpia",
+     "skill_id": "Skills/business-skills/build-dpia"
+    }
+   ]
+  }
+ ],
+ "schema_version": "1.0.0"
+}

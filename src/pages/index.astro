@@ -1,0 +1,60 @@
+---
+// The home page, built from the map file at build time. No script runs on it.
+import Base from '../layouts/Base.astro';
+import { facts, listRoutes, loadMap } from '../lib/map';
+
+const map = loadMap();
+const summary = facts(map);
+const routes = listRoutes(map);
+const strip = [
+  { label: 'Pages on the defence map', value: summary.defencePages.toLocaleString('en-GB') },
+  { label: 'Skills', value: summary.skills.toLocaleString('en-GB') },
+  { label: 'Folders', value: summary.folders.toLocaleString('en-GB') },
+  { label: 'Routes', value: summary.routes.toLocaleString('en-GB') },
+  { label: 'Pack version', value: summary.packVersion },
+];
+---
+<Base
+  title="Foothold: a ready-to-go structure for a small defence business"
+  description="Foothold is a free pack of notes and AI skills for founders of small UK defence businesses: folders for your records, skills that do the jobs, and a map of the defence organisations you deal with."
+>
+  <header class="page-hero">
+    <p class="mono kicker">A free pack for UK defence founders</p>
+    <h1>A ready-to-go structure for your defence business, with AI built in<span class="stop">.</span></h1>
+    <p class="lede">
+      Foothold is a free pack of notes and AI skills for founders of small UK defence businesses: folders for your records, skills that do the jobs, and a map of the defence organisations you deal with.
+    </p>
+    <dl class="facts" aria-label="What is in the pack">
+      {strip.map((fact) => <div><dt class="mono">{fact.label}</dt><dd>{fact.value}</dd></div>)}
+    </dl>
+  </header>
+
+  <section aria-labelledby="routes-heading">
+    <h2 id="routes-heading">Jobs, step by step</h2>
+    <p>A route is a job that takes more than one skill. Each step names the skill and says what it does.</p>
+    <div class="routes">
+      {routes.map((route, i) => (
+        <article class="card route" aria-labelledby={`route-${i}`}>
+          <div class="card-head"><h3 id={`route-${i}`}>{route.name}</h3></div>
+          <ol class="route-steps">
+            {route.steps.map((step) => (
+              <li class="route-step">
+                <div>
+                  <span class="route-skill">{step.skill}</span>
+                  <p class="route-does">{step.does}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section aria-labelledby="early-heading">
+    <h2 id="early-heading">An early build</h2>
+    <div class="note">
+      <p>This is an early build. The map itself is coming; for now this page shows what the pack holds and the jobs it already knows how to do.</p>
+    </div>
+  </section>
+</Base>

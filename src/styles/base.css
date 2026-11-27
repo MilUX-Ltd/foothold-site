@@ -1,0 +1,168 @@
+/* Foothold design language: tokens, type and the shared components every page
+   uses. Taken from the MilUX family baseline: paper, ink and one signal colour,
+   square corners, flat offset shadows, no gradients. Forest is the primary and
+   clay the accent; both come from the Foothold brand kit. */
+
+/* Fonts: self-hosted WOFF2 (SIL OFL 1.1, see public/fonts/OFL.txt). */
+@font-face { font-family: Manrope; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/manrope-400.woff2') format('woff2'); }
+@font-face { font-family: Manrope; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/manrope-600.woff2') format('woff2'); }
+@font-face { font-family: Manrope; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/manrope-700.woff2') format('woff2'); }
+@font-face { font-family: Manrope; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/manrope-800.woff2') format('woff2'); }
+@font-face { font-family: 'Roboto Mono'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/roboto-mono-500.woff2') format('woff2'); }
+
+/* Tokens */
+:root {
+  --paper: #f5f4ef; /* page background */
+  --white: #fff; /* cards, bars, inputs */
+  --ink: #0c1510; /* text, borders, dark buttons */
+  --ink-2: #3f4a42; /* body copy on paper or white */
+  --ink-3: #5f6a62; /* labels and meta; never below 4.5:1 */
+  --line: #d9d8ce; /* hairlines inside cards */
+  --forest: #113308; /* primary action */
+  --forest-dark: #0a2204; /* primary action, hover */
+  --clay: #a35c17; /* accent text: kickers, distances */
+  --signal: #e2611c; /* graphic accent only: underlines, dots, focus ring, counts */
+  --shadow: rgb(12 21 16 / 12%);
+  --shadow-card: 6px 6px 0 var(--shadow);
+  --shadow-search: 8px 8px 0 var(--shadow);
+
+  /* Data ramp, low to high: every chart and map. */
+  --ramp-1: #f2d9a6;
+  --ramp-2: #eda552;
+  --ramp-3: #e2611c;
+  --ramp-4: #8a2b0a;
+  --font: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --bar-height: 60px;
+  --gutter: 32px;
+
+  color-scheme: light;
+}
+@media (max-width: 760px) {
+  :root { --gutter: 16px; }
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+main { flex: 1 0 auto; width: 100%; max-width: 72rem; margin: 0 auto; padding: 40px var(--gutter) 56px; }
+main.wide { max-width: none; padding-top: 20px; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+[hidden] { display: none !important; }
+h1, h2, h3, h4, h5 { font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+h2 { font-size: 26px; line-height: 1.05; margin: 40px 0 12px; }
+h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+h4, h5 { font-size: 16px; font-weight: 700; letter-spacing: 0; }
+p, li, dd { color: var(--ink-2); }
+strong, b { font-weight: 700; }
+code { font-family: var(--font-mono); font-weight: 500; font-size: 0.9em; }
+input::placeholder { color: #747b73; font-weight: 400; }
+.skip-link { position: absolute; left: -999px; z-index: 10; }
+.skip-link:focus { left: 16px; top: 12px; background: var(--white); border: 1.5px solid var(--ink); padding: 8px 12px; font-weight: 700; }
+.vh {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Mono label: data labels, field labels, kickers. */
+.mono { font-family: var(--font-mono); font-weight: 500; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* Top bar (SiteHeader.astro): the mark and name, nothing else yet. */
+.topbar { position: relative; z-index: 6; flex: none; height: var(--bar-height); display: flex; align-items: center; padding: 0 var(--gutter); background: var(--white); border-bottom: 1px solid var(--ink); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand b { font-weight: 700; font-size: 21px; letter-spacing: 0.02em; text-transform: uppercase; }
+
+/* Page hero: kicker, headline ending in a signal full stop, one purpose
+   sentence.
+   <header class="page-hero">
+     <p class="mono kicker">Kicker</p>
+     <h1>Headline<span class="stop">.</span></h1>
+     <p class="lede">One sentence.</p>
+   </header> */
+.page-hero { margin: 16px 0 40px; max-width: 60rem; }
+.kicker { color: var(--clay); display: flex; align-items: center; gap: 10px; margin: 0; }
+.kicker::before { content: ''; flex: none; width: 26px; height: 2px; background: var(--signal); }
+.page-hero h1, .display { font-weight: 800; font-size: clamp(40px, 5.3vw, 76px); line-height: 0.96; letter-spacing: -0.04em; margin: 16px 0 18px; color: var(--ink); }
+.stop { color: var(--signal); font-style: normal; }
+.lede { margin: 0 0 24px; font-size: 18px; color: var(--ink-2); max-width: 31em; }
+@media (max-width: 760px) {
+  .lede { font-size: 16px; }
+}
+
+/* Card: white, ink border, flat offset shadow. Rows inside divide with a
+   hairline. */
+.card { background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
+.card-head { padding: 14px 18px 12px; border-bottom: 1px solid var(--line); }
+.card-head h2, .card-head h3 { margin: 0; font-weight: 800; font-size: 26px; letter-spacing: -0.02em; line-height: 1.05; }
+.card-row { padding: 13px 18px; border-bottom: 1px solid var(--line); }
+.card-row:last-child { border-bottom: 0; }
+.card-pad { padding: 18px; }
+
+/* Tag */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 7px; background: var(--paper); border: 1px solid var(--line); color: var(--ink-2); }
+
+/* Fact strip: a big numeral over a mono label, in a row. The label comes first in the markup so a screen reader hears it first.
+   <dl class="facts"><div><dt class="mono">Skills</dt><dd>64</dd></div></dl> */
+.facts { display: flex; flex-wrap: wrap; gap: 26px; margin: 24px 0 0; }
+.facts div { display: flex; flex-direction: column-reverse; }
+.facts dd { margin: 0; color: var(--ink); font-weight: 800; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.facts dt { color: var(--ink-3); }
+@media (max-width: 760px) {
+  .facts { gap: 18px; }
+  .facts dd { font-size: 21px; }
+}
+
+/* Routes: each job is a card holding its ordered steps. */
+.routes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+.route { padding: 0; }
+.route h3 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); }
+.route-steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.route-step { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); align-items: baseline; padding: 13px 18px; border-bottom: 1px solid var(--line); counter-increment: step; }
+.route-step:last-child { border-bottom: 0; }
+.route-step::before { content: counter(step, decimal-leading-zero); font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; letter-spacing: 0.1em; color: var(--clay); }
+.route-skill { display: block; margin-bottom: 2px; font-family: var(--font-mono); font-weight: 500; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.route-does { margin: 0; color: var(--ink-2); }
+@media (min-width: 62rem) {
+  .routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A plain note: used for the early-build line. */
+.note { max-width: 44rem; padding: 14px 18px; background: var(--white); border: 1.5px solid var(--ink); border-left-width: 6px; border-left-color: var(--clay); color: var(--ink); }
+.note p { margin: 0; color: var(--ink); }
+
+/* The 404 page. */
+.not-found-code { display: block; }
+
+/* Footer (SiteFooter.astro) */
+.site-footer { flex: none; background: var(--white); border-top: 1px solid var(--ink); padding: 28px var(--gutter) 32px; }
+.site-footer p { margin: 0; }
+.footer-credits { max-width: 60rem; margin-bottom: 20px; font-size: 13.5px; color: var(--ink-2); }
+.footer-credits p + p { margin-top: 6px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 4px 22px; list-style: none; margin: 8px 0 0; padding: 0; }
+.footer-links a { display: inline-block; padding: 4px 0; font-weight: 600; font-size: 14.5px; color: var(--ink); text-decoration: none; }
+.footer-links a:hover { box-shadow: inset 0 -2px 0 var(--signal); }
+.footer-built { color: var(--ink-2); font-size: 14.5px; font-weight: 600; }
+.footer-built a { display: inline-block; padding: 4px 0; color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
