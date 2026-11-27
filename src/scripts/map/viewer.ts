@@ -1,18 +1,29 @@
-// The map's script: fetches the settled graph from this site, starts the
-// renderer, and joins the map, the list, the panels, the path controls, the
-// jobs and the address together so each drives the others. It also moves the page from the
-// landing state (the headline over the map) to the exploring state (the map
-// with its panels), and tells the renderer which part of the canvas the panels
-// leave free, so the drawing is never fitted underneath them.
+// The map's script: joins the four drawn views, the network canvas, the list,
+// the panels, the path, the jobs and the address together so each drives the
+// others. It moves the page from the landing state (the headline over the
+// whole map) to the exploring state, and tells the whole map and the canvas
+// which part of the stage the panels leave free, so nothing is fitted under
+// them.
+//
+// - The view switcher shows one view at a time and puts it in the address.
+//   The whole map is in the page already; the others are fetched from this
+//   site the first time they are chosen (drawings.ts). The network canvas is
+//   started only when its view is first shown.
+// - One selection, one job and one path hold across every view. A view that
+//   does not hold the selected page says so and offers the whole map.
 //
 // Text from the map file is only ever set as textContent, never as markup.
 import { connectionsOf, typeLabel } from '../../lib/graph/connections';
 import { freeArea, type Rect } from '../../lib/graph/fit';
 import { kindName, layerLabel, type Graph } from '../../lib/graph/model';
+import type { Layout } from '../../lib/graph/layout';
 import { shortestPath, type PathResult } from '../../lib/graph/path';
 import { readPayload } from '../../lib/graph/payload';
 import { routeLit, routeView, type RouteInput, type RouteStep, type RouteView } from '../../lib/graph/routes';
 import { DEFAULT_STATE, queryToState, stateToQuery, type MapState } from '../../lib/graph/url-state';
+import { DRAWN_VIEWS, VIEW_LABELS, type DrawnView, type ViewName } from '../../lib/graph/view-common';
+import { MapCamera } from './camera';
+import { Drawings } from './drawings';
 import { MapRenderer } from './render';
 
 const DATA_URL = '/map/graph.json';
@@ -55,8 +66,12 @@ function shown(node: Element | null): node is HTMLElement {
   return rect.width > 0 && rect.height > 0;
 }
 
+const isDrawn = (view: ViewName): view is DrawnView => (DRAWN_VIEWS as readonly string[]).includes(view);
+const SWITCH_ORDER: DrawnView[] = [...DRAWN_VIEWS];
+
 export async function startViewer(): Promise<void> {
   const explorer = byId<HTMLElement>('explorer');
+  const stage = byId<HTMLElement>('map-views');
   const canvas = byId<HTMLCanvasElement>('map-canvas');
   const status = byId<HTMLElement>('map-status');
   const waiting = byId<HTMLElement>('map-waiting');
@@ -66,7 +81,16 @@ export async function startViewer(): Promise<void> {
   const tools = explorer.querySelector<HTMLElement>('.map-tools');
   const list = byId<HTMLElement>('node-list');
   const lead = document.getElementById('lead');
+  const switcher = byId<HTMLElement>('view-switch');
+  const note = byId<HTMLElement>('view-note');
+  const noteLink = byId<HTMLAnchorElement>('view-note-link');
+  const svg = document.getElementById('map-drawing') as SVGSVGElement | null;
+  const mvStage = byId<HTMLElement>('mv-stage');
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const narrowQuery = window.matchMedia('(max-width: 760px)');
   let renderer: MapRenderer | null = null;
+  let camera: MapCamera | null = null;
+  stage.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
 
   const say = (message: string) => {
     // Clear first so the same message twice is still announced.
@@ -74,22 +98,39 @@ export async function startViewer(): Promise<void> {
     window.setTimeout(() => (status.textContent = message), 30);
   };
 
-  // ---- the free part of the canvas -----------------------------------------
-  // Panels lie over the map on a wide screen. Whatever of theirs overlaps the
-  // canvas is cut away, and the drawing is fitted into what is left. On a
-  // phone the panels sit below the map, overlap nothing, and the whole canvas
-  // is free.
+  // ---- the whole map's camera, started at once so the drawing is fitted before anything else ----
+  if (svg) {
+    camera = new MapCamera(svg, motionQuery.matches);
+    camera.wheelOnly = narrowQuery.matches;
+    camera.leading = explorer.dataset.state === 'landing';
+  }
+
+  // The landing view draws itself in once: rings, then marks, then lines. Not with reduced motion.
+  if (svg && explorer.dataset.state === 'landing' && !motionQuery.matches) {
+    svg.classList.add('drawing');
+    window.setTimeout(() => svg.classList.remove('drawing'), 2200);
+  }
+
+  // ---- the free part of the stage ---------------------------------------------
+  // Panels lie over the drawing on a wide screen. Whatever of theirs overlaps
+  // the stage is cut away, and the drawing is fitted into what is left. On a
+  // phone the panels sit below it and the whole stage is free.
+  let view: ViewName = 'map';
   function updateFreeArea(options: { animate?: boolean } = {}) {
-    if (!renderer) return;
-    const c = canvas.getBoundingClientRect();
+    const target = view === 'network' ? canvas : view === 'map' ? svg : null;
+    if (!target) return;
+    const c = target.getBoundingClientRect();
+    if (c.width <= 0 || c.height <= 0) return;
     const container: Rect = { left: 0, top: 0, width: c.width, height: c.height };
     const obstacles: Rect[] = [];
-    for (const node of [lead, list, tools, stack]) {
+    for (const node of [lead, list, tools, stack, switcher, note]) {
       if (!shown(node)) continue;
       const r = node.getBoundingClientRect();
       obstacles.push({ left: r.left - c.left, top: r.top - c.top, width: r.width, height: r.height });
     }
-    renderer.setFreeArea(freeArea(container, obstacles, 20), { animate: options.animate && !renderer.reducedMotion });
+    const area = freeArea(container, obstacles, 20);
+    if (view === 'network' && renderer) renderer.setFreeArea(area, { animate: options.animate && !renderer.reducedMotion });
+    if (view === 'map' && camera) camera.setFree(area, { animate: options.animate && !camera.reducedMotion });
   }
 
   // ---- landing and exploring ------------------------------------------------
@@ -100,6 +141,8 @@ export async function startViewer(): Promise<void> {
       return;
     }
     explorer.dataset.state = 'exploring';
+    svg?.classList.remove('drawing');
+    if (camera) camera.leading = false;
     updateFreeArea({ animate: true });
     if (options.focusSearch) search.focus();
   }
@@ -132,44 +175,57 @@ export async function startViewer(): Promise<void> {
     });
   }
 
-  // The list's heading becomes the button that folds it away.
+  // The list's heading becomes the button that folds it away. On a narrower
+  // wide screen it starts folded, so the drawing has the room.
   const listHeading = list.querySelector<HTMLElement>('h2[data-toggles]');
-  if (listHeading) {
-    const body = byId<HTMLElement>(listHeading.dataset.toggles!);
+  const listBody = listHeading ? byId<HTMLElement>(listHeading.dataset.toggles!) : null;
+  let listToggle: HTMLButtonElement | null = null;
+  const foldList = (open: boolean) => {
+    if (!listToggle || !listBody) return;
+    listToggle.setAttribute('aria-expanded', String(open));
+    listBody.hidden = !open;
+    list.classList.toggle('is-folded', !open);
+    explorer.classList.toggle('list-folded', !open);
+  };
+  if (listHeading && listBody) {
     const button = el('button', { className: 'list-toggle', text: listHeading.textContent?.trim() ?? '' });
     button.type = 'button';
     button.id = 'list-toggle';
     button.setAttribute('aria-expanded', 'true');
-    button.setAttribute('aria-controls', body.id);
+    button.setAttribute('aria-controls', listBody.id);
     listHeading.replaceChildren(button);
+    listToggle = button;
     button.addEventListener('click', () => {
-      const open = button.getAttribute('aria-expanded') !== 'true';
-      button.setAttribute('aria-expanded', String(open));
-      body.hidden = !open;
-      list.classList.toggle('is-folded', !open);
+      foldList(button.getAttribute('aria-expanded') !== 'true');
       updateFreeArea({ animate: true });
     });
+    if (window.matchMedia('(min-width: 761px) and (max-width: 1199px)').matches) foldList(false);
   }
+  const openList = () => {
+    enterExploring();
+    foldList(true);
+    updateFreeArea();
+    search.focus();
+  };
 
-  // ---- the data and the renderer -------------------------------------------
+  // ---- the data ----------------------------------------------------------------
   let graph: Graph;
-  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let layout: Layout;
   try {
     const response = await fetch(DATA_URL, { credentials: 'same-origin' });
     if (!response.ok) throw new Error(`The map data answered ${response.status}`);
-    const { graph: g, layout } = readPayload(await response.json());
-    graph = g;
-    renderer = new MapRenderer(canvas, graph, layout, motionQuery.matches);
+    ({ graph, layout } = readPayload(await response.json()));
   } catch (error) {
     waitingText.textContent = `The drawing could not start (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`;
+    explorer.dataset.ready = 'true';
     return;
   }
-  const r = renderer;
-  waiting.hidden = true;
-  canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
+  const drawings = new Drawings(stage, graph);
   motionQuery.addEventListener('change', () => {
-    r.reducedMotion = motionQuery.matches;
-    canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
+    stage.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
+    if (renderer) renderer.reducedMotion = motionQuery.matches;
+    if (camera) camera.reducedMotion = motionQuery.matches;
+    if (renderer) canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
   });
 
   const listButtons = new Map<string, HTMLButtonElement>();
@@ -189,6 +245,35 @@ export async function startViewer(): Promise<void> {
     window.history.replaceState(null, '', `${window.location.pathname}${query}${window.location.hash}`);
   };
   const nameOf = (id: string) => graph.byId.get(id)?.name ?? id;
+  let lastPath: PathResult = { nodes: [], edges: [] };
+  let litRoute: { id: string; step: number | null } | null = null;
+
+  /** Starts the network canvas the first time its view is shown. */
+  function ensureRenderer(): MapRenderer {
+    if (renderer) return renderer;
+    renderer = new MapRenderer(canvas, graph, layout, motionQuery.matches);
+    canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
+    waiting.hidden = true;
+    renderer.setMode(state.mode);
+    renderer.setHighlight({ selected: state.node, path: lastPath.nodes, pathEdges: lastPath.edges, route: litRoute ? routeLitFor(litRoute.id, litRoute.step) : null });
+    renderer.draw();
+    canvas.dataset.ready = 'true';
+    return renderer;
+  }
+
+  // ---- the "not in this view" line --------------------------------------------
+  function updateNote() {
+    const missing = state.node !== null && isDrawn(view) && view !== 'map' && !drawings.holds(view, state.node);
+    if (missing) noteLink.href = stateToQuery({ ...state, view: 'map', mode: '2d' }) || '?';
+    if (note.hidden !== !missing) {
+      note.hidden = !missing;
+      updateFreeArea();
+    }
+  }
+  noteLink.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    void setView('map', { announce: true });
+  });
 
   // ---- selection ------------------------------------------------------
   function renderSelection(id: string | null) {
@@ -225,7 +310,7 @@ export async function startViewer(): Promise<void> {
     clear.type = 'button';
     clear.addEventListener('click', () => {
       select(null);
-      canvas.focus();
+      (view === 'network' ? canvas : stage.querySelector<HTMLElement>(`[data-view-pane="${view}"] .mk[tabindex="0"]`) ?? search).focus();
       say('Selection cleared.');
     });
     actions.append(fromHere, toHere, clear);
@@ -259,23 +344,46 @@ export async function startViewer(): Promise<void> {
     }
   }
 
+  /** Brings a page's mark into sight in the view shown. */
+  function bringIntoView(id: string) {
+    if (view === 'network') {
+      renderer?.focusOn(id);
+      return;
+    }
+    const marks = drawings.marksOf(view, id).filter((m) => m.getClientRects().length > 0);
+    if (!marks.length) return;
+    if (view === 'map' && camera) {
+      // Bring the mark into sight; never shrink the drawing to make room for the panels.
+      const m = marks.find((x) => (x as SVGElement).dataset.x !== undefined) as SVGElement | undefined;
+      camera.moved = true;
+      if (m) camera.focusOn([{ x: Number(m.dataset.x), y: Number(m.dataset.y) }]);
+      return;
+    }
+    marks[0].scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: motionQuery.matches ? 'auto' : 'smooth' });
+  }
+
   function select(id: string | null, options: { announce?: boolean; move?: boolean } = {}) {
     const { announce = true, move = true } = options;
     // Choosing anything puts the headline away.
     if (id) enterExploring();
+    // Once something is chosen, panels opening and closing no longer refit the whole map.
+    if (id && camera && view === 'map') camera.moved = true;
     if (state.node) listButtons.get(state.node)?.removeAttribute('aria-current');
     state = { ...state, node: id };
     if (id) listButtons.get(id)?.setAttribute('aria-current', 'true');
     renderSelection(id);
     selectionPanel.hidden = !id;
-    r.setHighlight({ selected: id });
+    drawings.setSelected(id);
+    renderer?.setHighlight({ selected: id });
+    updateNote();
     updateFreeArea({ animate: true });
-    if (id && move) r.focusOn(id);
+    if (id && move) bringIntoView(id);
     writeAddress();
     if (id && announce) {
       const node = graph.byId.get(id)!;
       const total = connectionsOf(graph, id).total;
-      say(`Selected ${node.name}, ${kindName(node.kind)}. ${total} connection${total === 1 ? '' : 's'}, listed in the selected page panel.`);
+      const elsewhere = isDrawn(view) && view !== 'map' && !drawings.holds(view, id) ? ' This page is not in this view.' : '';
+      say(`Selected ${node.name}, ${kindName(node.kind)}. ${total} connection${total === 1 ? '' : 's'}, listed in the selected page panel.${elsewhere}`);
     }
   }
 
@@ -287,7 +395,9 @@ export async function startViewer(): Promise<void> {
     pathResult.replaceChildren();
     state = { ...state, from, to };
     if (!from || !to) {
-      r.setHighlight({ path: [], pathEdges: [] });
+      lastPath = { nodes: [], edges: [] };
+      drawings.setPath([], []);
+      renderer?.setHighlight({ path: [], pathEdges: [] });
       writeAddress();
       if (from || to) {
         pathResult.append(el('p', { text: 'Choose a page for both ends of the path.' }));
@@ -296,11 +406,14 @@ export async function startViewer(): Promise<void> {
       return;
     }
     enterExploring();
+    if (camera && view === 'map') camera.moved = true;
     setPanel('path', true);
     const result: PathResult = shortestPath(graph, from, to);
     writeAddress();
     if (!result.nodes.length) {
-      r.setHighlight({ path: [], pathEdges: [] });
+      lastPath = { nodes: [], edges: [] };
+      drawings.setPath([], []);
+      renderer?.setHighlight({ path: [], pathEdges: [] });
       const message = `No path joins ${nameOf(from)} and ${nameOf(to)} on this map.`;
       pathResult.append(el('p', { className: 'path-none', text: message }));
       if (announce) say(message);
@@ -326,10 +439,24 @@ export async function startViewer(): Promise<void> {
       items.append(item);
     });
     pathResult.append(items);
-    r.setHighlight({ path: result.nodes, pathEdges: result.edges });
+    lastPath = result;
+    drawings.setPath(result.nodes, result.edges);
+    renderer?.setHighlight({ path: result.nodes, pathEdges: result.edges });
     updateFreeArea();
-    r.focusOnAll(result.nodes);
+    if (view === 'network') renderer?.focusOnAll(result.nodes);
+    if (view === 'map') focusMapOn(result.nodes);
     if (announce) say(`Path found. ${summary} ${result.nodes.map(nameOf).join(', then ')}.`);
+  }
+
+  /** Brings a set of pages into sight on the whole map. */
+  function focusMapOn(ids: string[]) {
+    if (!camera) return;
+    const points: { x: number; y: number }[] = [];
+    for (const id of ids) {
+      const m = drawings.marksOf('map', id).find((x) => (x as SVGElement).dataset.x !== undefined) as SVGElement | undefined;
+      if (m && m.getClientRects().length) points.push({ x: Number(m.dataset.x), y: Number(m.dataset.y) });
+    }
+    camera.focusOn(points);
   }
 
   byId<HTMLButtonElement>('path-go').addEventListener('click', () => showPath(pathFrom.value || null, pathTo.value || null));
@@ -340,27 +467,30 @@ export async function startViewer(): Promise<void> {
     say('Path cleared.');
   });
 
-  // ---- view mode and camera ---------------------------------------------
-  function setMode(mode: MapState['view']) {
-    state = { ...state, view: mode };
-    r.setMode(mode);
+  // ---- the network's mode and the cameras --------------------------------------
+  function setMode(mode: MapState['mode']) {
+    state = { ...state, mode };
+    renderer?.setMode(mode);
     modeButton.setAttribute('aria-pressed', String(mode === '3d'));
     writeAddress();
   }
   modeButton.addEventListener('click', () => {
-    setMode(state.view === '3d' ? '2d' : '3d');
-    say(state.view === '3d' ? '3D view. Drag to turn the map; hold shift and drag to move it.' : 'Flat view.');
+    setMode(state.mode === '3d' ? '2d' : '3d');
+    say(state.mode === '3d' ? '3D view. Drag to turn the map; hold shift and drag to move it.' : 'Flat view.');
   });
-  byId<HTMLButtonElement>('map-zoom-in').addEventListener('click', () => r.zoomBy(1.3));
-  byId<HTMLButtonElement>('map-zoom-out').addEventListener('click', () => r.zoomBy(1 / 1.3));
-  byId<HTMLButtonElement>('map-reset').addEventListener('click', () => r.fit({ animate: !r.reducedMotion }));
+  byId<HTMLButtonElement>('map-zoom-in').addEventListener('click', () => (view === 'network' ? renderer?.zoomBy(1.3) : camera?.zoomBy(1.3)));
+  byId<HTMLButtonElement>('map-zoom-out').addEventListener('click', () => (view === 'network' ? renderer?.zoomBy(1 / 1.3) : camera?.zoomBy(1 / 1.3)));
+  byId<HTMLButtonElement>('map-reset').addEventListener('click', () => {
+    if (view === 'network') renderer?.fit({ animate: !renderer.reducedMotion });
+    else camera?.fit({ animate: !camera.reducedMotion });
+  });
 
-  // ---- the key's control: every "mentions" and "filed in" line, or only some
+  // ---- the network key's control: every "mentions" and "filed in" line, or only some
   const allEdges = byId<HTMLButtonElement>('edges-all');
   allEdges.addEventListener('click', () => {
     const on = allEdges.getAttribute('aria-pressed') !== 'true';
     allEdges.setAttribute('aria-pressed', String(on));
-    r.setHighlight({ showAll: on });
+    renderer?.setHighlight({ showAll: on });
     say(on ? 'All “mentions” and “filed in” lines shown.' : '“Mentions” and “filed in” lines hidden until you point at a page or choose one.');
   });
 
@@ -388,119 +518,289 @@ export async function startViewer(): Promise<void> {
     searchTimer = window.setTimeout(() => say(text), 400);
   });
 
-  // ---- the canvas: pointer, wheel and keys ---------------------------------
-  const pointers = new Map<number, { x: number; y: number }>();
-  let dragged = false;
-  let pinch = 0;
-  let hovered: string | null = null;
-  const local = (ev: { clientX: number; clientY: number }) => {
-    const rect = canvas.getBoundingClientRect();
-    return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
-  };
-  canvas.addEventListener('pointerdown', (ev) => {
-    canvas.setPointerCapture(ev.pointerId);
-    pointers.set(ev.pointerId, local(ev));
-    dragged = false;
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      pinch = Math.hypot(a.x - b.x, a.y - b.y);
-    }
+  // ---- the drawn views: pointing, choosing, the arrow keys -------------------------------
+  let suppressClick = false;
+  const markOf = (target: EventTarget | null) => (target instanceof Element ? target.closest<HTMLElement | SVGElement>('.mk[data-id], .vl-btn[data-id], .vl-btn[data-route]') : null);
+  stage.addEventListener('pointerover', (ev) => {
+    if (view === 'network' || ev.pointerType === 'touch') return;
+    const m = markOf(ev.target);
+    if (m instanceof SVGElement) drawings.setPointed(m.dataset.id ?? null);
   });
-  canvas.addEventListener('pointermove', (ev) => {
-    const p = local(ev);
-    const last = pointers.get(ev.pointerId);
-    if (!last) {
-      const over = r.nodeAt(p.x, p.y);
-      if (over !== hovered) {
-        hovered = over;
-        canvas.classList.toggle('is-pointing', over !== null);
-        r.setHighlight({ hovered: over });
-      }
-      return;
-    }
-    pointers.set(ev.pointerId, p);
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch > 0) r.zoomBy(d / pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
-      pinch = d;
-      dragged = true;
-      return;
-    }
-    const dx = p.x - last.x;
-    const dy = p.y - last.y;
-    if (Math.abs(dx) + Math.abs(dy) > 2) dragged = true;
-    if (state.view === '3d' && !ev.shiftKey) r.turnBy(dx, dy);
-    else r.panBy(dx, dy);
+  stage.addEventListener('pointerout', (ev) => {
+    if (view === 'network') return;
+    const from = markOf(ev.target);
+    const to = markOf(ev.relatedTarget);
+    if (from && from !== to) drawings.setPointed(to instanceof SVGElement ? (to.dataset.id ?? null) : null);
   });
-  const release = (ev: PointerEvent) => {
-    const had = pointers.delete(ev.pointerId);
-    if (pointers.size < 2) pinch = 0;
-    if (had && !dragged && pointers.size === 0 && ev.type === 'pointerup') {
-      const p = local(ev);
-      const id = r.nodeAt(p.x, p.y);
-      select(id, { move: false });
-    }
-  };
-  canvas.addEventListener('pointerup', release);
-  canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('pointerleave', () => {
-    if (hovered === null) return;
-    hovered = null;
-    canvas.classList.remove('is-pointing');
-    r.setHighlight({ hovered: null });
+  stage.addEventListener('focusin', (ev) => {
+    const m = markOf(ev.target);
+    if (m instanceof SVGElement) drawings.setPointed(m.dataset.id ?? null);
   });
-  canvas.addEventListener(
-    'wheel',
+  stage.addEventListener('focusout', (ev) => {
+    if (!markOf(ev.relatedTarget)) drawings.setPointed(null);
+  });
+  stage.addEventListener(
+    'click',
     (ev) => {
-      ev.preventDefault();
-      const p = local(ev);
-      r.zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y);
+      if (suppressClick) {
+        suppressClick = false;
+        ev.stopPropagation();
+        ev.preventDefault();
+        return;
+      }
+      const target = ev.target instanceof Element ? ev.target : null;
+      const link = target?.closest('a.list-link');
+      if (link) {
+        ev.preventDefault();
+        openList();
+        return;
+      }
+      const m = markOf(target);
+      if (!m) return;
+      const route = m.dataset.route;
+      if (route && views.has(route)) {
+        const step = m.dataset.step ? Number(m.dataset.step) : null;
+        showJob(route, step, { focus: 'keep' });
+        return;
+      }
+      if (m.dataset.id) select(m.dataset.id, { move: false });
     },
-    { passive: false },
+    true,
   );
-  canvas.addEventListener('keydown', (ev) => {
-    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
-    const step = 60;
-    const turn = state.view === '3d' && !ev.shiftKey;
-    const keys: Record<string, () => void> = {
-      ArrowLeft: () => (turn ? r.turnBy(-step / 2, 0) : r.panBy(step, 0)),
-      ArrowRight: () => (turn ? r.turnBy(step / 2, 0) : r.panBy(-step, 0)),
-      ArrowUp: () => (turn ? r.turnBy(0, -step / 2) : r.panBy(0, step)),
-      ArrowDown: () => (turn ? r.turnBy(0, step / 2) : r.panBy(0, -step)),
-      '+': () => r.zoomBy(1.3),
-      '=': () => r.zoomBy(1.3),
-      '-': () => r.zoomBy(1 / 1.3),
-      '0': () => r.fit(),
-      Escape: () => {
-        if (state.node) {
-          select(null);
-          say('Selection cleared.');
+  stage.addEventListener('keydown', (ev) => {
+    if (view === 'network' || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const m = markOf(ev.target);
+    if (m instanceof SVGElement) {
+      const moves: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Home: -Infinity, End: Infinity };
+      if (ev.key in moves && !(ev.shiftKey && view === 'map')) {
+        ev.preventDefault();
+        const next = drawings.step(m, moves[ev.key]);
+        if (next) {
+          m.setAttribute('tabindex', '-1');
+          next.setAttribute('tabindex', '0');
+          next.focus();
+          if (view === 'map' && camera && next.dataset.x !== undefined) camera.focusOn([{ x: Number(next.dataset.x), y: Number(next.dataset.y) }], { animate: false });
         }
-      },
-    };
-    const action = keys[ev.key];
-    if (action) {
-      ev.preventDefault();
-      action();
+        return;
+      }
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        m.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        return;
+      }
+    }
+    if (view === 'map' && camera) {
+      const keys: Record<string, () => void> = {
+        '+': () => camera!.zoomBy(1.3),
+        '=': () => camera!.zoomBy(1.3),
+        '-': () => camera!.zoomBy(1 / 1.3),
+        '0': () => camera!.fit({ animate: !camera!.reducedMotion }),
+      };
+      if (ev.shiftKey && ev.key.startsWith('Arrow')) {
+        const d = 60;
+        const pan: Record<string, [number, number]> = { ArrowLeft: [d, 0], ArrowRight: [-d, 0], ArrowUp: [0, d], ArrowDown: [0, -d] };
+        ev.preventDefault();
+        camera.panBy(...pan[ev.key]);
+        return;
+      }
+      if (keys[ev.key]) {
+        ev.preventDefault();
+        keys[ev.key]();
+        return;
+      }
+    }
+    if (ev.key === 'Escape' && state.node) {
+      select(null);
+      say('Selection cleared.');
     }
   });
 
+  // ---- the whole map: drag, wheel and pinch ------------------------------------------------
+  if (svg && camera) {
+    const cam = camera;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    let moved = 0;
+    const local = (ev: { clientX: number; clientY: number }) => {
+      const r = svg.getBoundingClientRect();
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    };
+    svg.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      pointers.set(ev.pointerId, local(ev));
+      moved = 0;
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+    });
+    svg.addEventListener('pointermove', (ev) => {
+      const last = pointers.get(ev.pointerId);
+      if (!last) return;
+      const p = local(ev);
+      pointers.set(ev.pointerId, p);
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0) cam.zoomBy(d / pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        pinch = d;
+        moved += 10;
+        return;
+      }
+      const dx = p.x - last.x;
+      const dy = p.y - last.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 4) {
+        if (!svg.hasPointerCapture(ev.pointerId)) svg.setPointerCapture(ev.pointerId);
+        svg.classList.add('is-dragging');
+        cam.panBy(dx, dy);
+      }
+    });
+    const release = (ev: PointerEvent) => {
+      if (!pointers.delete(ev.pointerId)) return;
+      if (pointers.size < 2) pinch = 0;
+      if (moved > 4) suppressClick = true;
+      if (!pointers.size) {
+        svg.classList.remove('is-dragging');
+        window.setTimeout(() => (suppressClick = false), 0);
+      }
+    };
+    svg.addEventListener('pointerup', release);
+    svg.addEventListener('pointercancel', release);
+    svg.addEventListener(
+      'wheel',
+      (ev) => {
+        ev.preventDefault();
+        const p = local(ev);
+        cam.zoomBy(Math.pow(1.0018, -ev.deltaY * (ev.deltaMode === 1 ? 16 : 1)), p.x, p.y);
+      },
+      { passive: false },
+    );
+    narrowQuery.addEventListener('change', () => {
+      cam.wheelOnly = narrowQuery.matches;
+      cam.fit();
+    });
+  }
+
+  // ---- the network canvas: pointer, wheel and keys (unchanged from the single view) ----------
+  {
+    const pointers = new Map<number, { x: number; y: number }>();
+    let dragged = false;
+    let pinch = 0;
+    let hovered: string | null = null;
+    const local = (ev: { clientX: number; clientY: number }) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+    };
+    canvas.addEventListener('pointerdown', (ev) => {
+      canvas.setPointerCapture(ev.pointerId);
+      pointers.set(ev.pointerId, local(ev));
+      dragged = false;
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+    });
+    canvas.addEventListener('pointermove', (ev) => {
+      const r = renderer;
+      if (!r) return;
+      const p = local(ev);
+      const last = pointers.get(ev.pointerId);
+      if (!last) {
+        const over = r.nodeAt(p.x, p.y);
+        if (over !== hovered) {
+          hovered = over;
+          canvas.classList.toggle('is-pointing', over !== null);
+          r.setHighlight({ hovered: over });
+        }
+        return;
+      }
+      pointers.set(ev.pointerId, p);
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0) r.zoomBy(d / pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        pinch = d;
+        dragged = true;
+        return;
+      }
+      const dx = p.x - last.x;
+      const dy = p.y - last.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) dragged = true;
+      if (state.mode === '3d' && !ev.shiftKey) r.turnBy(dx, dy);
+      else r.panBy(dx, dy);
+    });
+    const release = (ev: PointerEvent) => {
+      const had = pointers.delete(ev.pointerId);
+      if (pointers.size < 2) pinch = 0;
+      if (renderer && had && !dragged && pointers.size === 0 && ev.type === 'pointerup') {
+        const p = local(ev);
+        select(renderer.nodeAt(p.x, p.y), { move: false });
+      }
+    };
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+    canvas.addEventListener('pointerleave', () => {
+      if (hovered === null) return;
+      hovered = null;
+      canvas.classList.remove('is-pointing');
+      renderer?.setHighlight({ hovered: null });
+    });
+    canvas.addEventListener(
+      'wheel',
+      (ev) => {
+        ev.preventDefault();
+        const p = local(ev);
+        renderer?.zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y);
+      },
+      { passive: false },
+    );
+    canvas.addEventListener('keydown', (ev) => {
+      const r = renderer;
+      if (!r || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const step = 60;
+      const turn = state.mode === '3d' && !ev.shiftKey;
+      const keys: Record<string, () => void> = {
+        ArrowLeft: () => (turn ? r.turnBy(-step / 2, 0) : r.panBy(step, 0)),
+        ArrowRight: () => (turn ? r.turnBy(step / 2, 0) : r.panBy(-step, 0)),
+        ArrowUp: () => (turn ? r.turnBy(0, -step / 2) : r.panBy(0, step)),
+        ArrowDown: () => (turn ? r.turnBy(0, step / 2) : r.panBy(0, -step)),
+        '+': () => r.zoomBy(1.3),
+        '=': () => r.zoomBy(1.3),
+        '-': () => r.zoomBy(1 / 1.3),
+        '0': () => r.fit(),
+        Escape: () => {
+          if (state.node) {
+            select(null);
+            say('Selection cleared.');
+          }
+        },
+      };
+      const action = keys[ev.key];
+      if (action) {
+        ev.preventDefault();
+        action();
+      }
+    });
+  }
+
   // The window or a panel changing size changes the free area.
   const resized = new ResizeObserver((entries) => {
-    if (entries.some((e) => e.target === canvas)) r.resize();
+    if (renderer && entries.some((e) => e.target === canvas)) renderer.resize();
+    if (camera && svg && entries.some((e) => e.target === mvStage)) camera.refresh();
     updateFreeArea();
   });
-  for (const node of [canvas, lead, list, tools, stack]) if (node) resized.observe(node);
+  for (const node of [canvas, mvStage, lead, list, tools, stack, switcher]) if (node) resized.observe(node);
 
   // ---- jobs: a route from the pack, whole or one step at a time -------------
   // What a job lights, and what the panel lists for each step, comes from
   // src/lib/graph/routes.ts. Here the panel is filled in and kept in step with
-  // the map and the address.
+  // the drawings, the canvas and the address.
   const views = new Map<string, RouteView>();
   for (const input of readRoutes()) {
     if (input.id && input.steps.length && input.steps.every((s) => graph.byId.has(s.skillId))) views.set(input.id, routeView(graph, input));
   }
+  const routeLitFor = (id: string, step: number | null) => routeLit(graph, views.get(id)!, step);
   const jobsPanel = byId<HTMLElement>('jobs');
   const jobsHeading = byId<HTMLElement>('jobs-heading');
   const jobsChoose = byId<HTMLElement>('jobs-choose');
@@ -521,7 +821,7 @@ export async function startViewer(): Promise<void> {
   // Folders are named by where they sit in the pack, which says more than their last part.
   const placeName = (id: string) => (graph.byId.get(id)?.kind === 'vault' ? 'the whole vault' : id);
 
-  function stepDetail(view: RouteView, step: RouteStep) {
+  function stepDetail(rv: RouteView, step: RouteStep) {
     jobStep.replaceChildren();
     const title = el('h4', { className: 'job-step-title' });
     title.id = 'job-step-heading';
@@ -544,20 +844,28 @@ export async function startViewer(): Promise<void> {
     if (step.defencePages.length) lines.append(el('li', { text: `Draws on ${plural(step.defencePages.length, 'defence page', 'defence pages')}` }));
     if (lines.childElementCount) jobStep.append(lines);
     if (step.exampleBusiness) jobStep.append(el('p', { className: 'job-example', text: `${step.exampleBusiness.name}, the example business, is filed here.` }));
-    jobStep.dataset.route = view.id;
+    jobStep.dataset.route = rv.id;
+  }
+
+  /** Lights the open job in the view shown. */
+  function lightJob() {
+    const route = litRoute ? { ...litRoute, lit: routeLitFor(litRoute.id, litRoute.step) } : null;
+    drawings.setRoute(route);
+    renderer?.setHighlight({ route: route?.lit ?? null });
   }
 
   function showJob(routeId: string | null, step: number | null, options: { announce?: boolean; focus?: 'name' | 'step' | 'list' | 'keep'; move?: boolean } = {}) {
     const { announce = true, focus = 'keep', move = true } = options;
-    const view = routeId ? views.get(routeId) : undefined;
-    if (!view) {
+    const rv = routeId ? views.get(routeId) : undefined;
+    if (!rv) {
       const was = state.route ?? null;
-      const rest: MapState = { node: state.node, from: state.from, to: state.to, view: state.view };
+      const rest: MapState = { node: state.node, from: state.from, to: state.to, view: state.view, mode: state.mode };
       state = rest;
       shownRoute = null;
+      litRoute = null;
       jobView.hidden = true;
       jobsChoose.hidden = false;
-      r.setHighlight({ route: null });
+      lightJob();
       writeAddress();
       updateFreeArea();
       if (focus === 'list' && was) jobButtons.get(was)?.focus();
@@ -570,21 +878,22 @@ export async function startViewer(): Promise<void> {
       pathTo.value = '';
       showPath(null, null, { announce: false });
     }
-    const total = view.steps.length;
-    const current = step !== null && step >= 1 && step <= total ? view.steps[step - 1] : null;
-    state = { ...state, route: view.id, step: current ? current.number : null };
+    const total = rv.steps.length;
+    const current = step !== null && step >= 1 && step <= total ? rv.steps[step - 1] : null;
+    state = { ...state, route: rv.id, step: current ? current.number : null };
+    if (camera && view === 'map') camera.moved = true;
     setPanel('jobs', true);
     jobsChoose.hidden = true;
     jobView.hidden = false;
-    if (shownRoute !== view.id) {
-      shownRoute = view.id;
-      jobName.textContent = view.name;
+    if (shownRoute !== rv.id) {
+      shownRoute = rv.id;
+      jobName.textContent = rv.name;
       jobSteps.replaceChildren();
-      for (const s of view.steps) {
+      for (const s of rv.steps) {
         const button = el('button', { className: 'job-step-button', text: s.skill });
         button.type = 'button';
         button.dataset.step = String(s.number);
-        button.addEventListener('click', () => showJob(view.id, s.number, { focus: 'step' }));
+        button.addEventListener('click', () => showJob(rv.id, s.number, { focus: 'step' }));
         jobSteps.append(el('li', {}, button));
       }
     }
@@ -594,32 +903,36 @@ export async function startViewer(): Promise<void> {
     }
     jobCount.textContent = current ? `Step ${current.number} of ${total}` : plural(total, 'step', 'steps');
     jobStep.hidden = !current;
-    if (current) stepDetail(view, current);
+    if (current) stepDetail(rv, current);
     else jobStep.replaceChildren();
     jobPrev.setAttribute('aria-disabled', String(!current || current.number === 1));
     jobNext.setAttribute('aria-disabled', String(current !== null && current.number === total));
     jobWhole.setAttribute('aria-disabled', String(!current));
-    const lit = routeLit(graph, view, current ? current.number : null);
-    r.setHighlight({ route: lit });
+    litRoute = { id: rv.id, step: current ? current.number : null };
+    lightJob();
     writeAddress();
     // Fit to what is lit once the panel has its new size, so nothing lit sits under it.
     updateFreeArea();
-    if (move) r.focusOnAll([...lit.strong, ...lit.soft]);
+    if (move) {
+      const lit = routeLitFor(rv.id, litRoute.step);
+      if (view === 'network') renderer?.focusOnAll([...lit.strong, ...lit.soft]);
+      if (view === 'map') focusMapOn([...lit.strong, ...lit.soft]);
+    }
     if (focus === 'name') jobName.focus();
     else if (focus === 'step') (document.getElementById('job-step-heading') ?? jobName).focus();
     if (announce) {
       if (current) say(`Step ${current.number} of ${total}: ${current.skill}. ${current.does}`);
-      else say(`${view.name}, the whole job: ${plural(total, 'step', 'steps')}, lit on the map.`);
+      else say(`${rv.name}, the whole job: ${plural(total, 'step', 'steps')}, lit on the map.`);
     }
   }
 
   const stepNow = () => state.step ?? null;
   const goNext = () => {
-    const view = state.route ? views.get(state.route) : undefined;
-    if (!view) return;
+    const rv = state.route ? views.get(state.route) : undefined;
+    if (!rv) return;
     const k = stepNow();
-    if (k === view.steps.length) return;
-    showJob(view.id, k === null ? 1 : k + 1);
+    if (k === rv.steps.length) return;
+    showJob(rv.id, k === null ? 1 : k + 1);
   };
   const goPrevious = () => {
     const k = stepNow();
@@ -650,19 +963,106 @@ export async function startViewer(): Promise<void> {
     }
   });
 
+  // ---- the view switcher ---------------------------------------------------------------
+  const viewButtons = [...switcher.querySelectorAll<HTMLButtonElement>('button[data-view-button]')];
+  const moreButton = byId<HTMLButtonElement>('view-more');
+  const moreMenu = byId<HTMLElement>('view-more-menu');
+  const rowButtons = viewButtons.filter((b) => b.closest('.switch-row'));
+  const setMore = (open: boolean) => {
+    moreButton.setAttribute('aria-expanded', String(open));
+    moreMenu.hidden = !open;
+  };
+  moreButton.addEventListener('click', () => setMore(moreMenu.hidden === true));
+  moreMenu.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      setMore(false);
+      moreButton.focus();
+    }
+  });
+  document.addEventListener('click', (ev) => {
+    if (!moreMenu.hidden && ev.target instanceof Node && !switcher.contains(ev.target)) setMore(false);
+  });
+  let switching = 0;
+
+  async function setView(next: ViewName, options: { announce?: boolean; focusButton?: boolean } = {}) {
+    const ticket = ++switching;
+    explorer.dataset.ready = 'false';
+    if (next !== 'map') enterExploring();
+    if (isDrawn(next)) {
+      try {
+        await drawings.ensure(next);
+      } catch (error) {
+        if (ticket !== switching) return;
+        say(`That view could not be drawn (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`);
+        explorer.dataset.ready = 'true';
+        return;
+      }
+    }
+    if (ticket !== switching) return;
+    view = next;
+    state = { ...state, view: next };
+    explorer.dataset.view = next;
+    for (const pane of stage.querySelectorAll<HTMLElement>('[data-view-pane]')) pane.hidden = pane.dataset.viewPane !== next;
+    for (const b of viewButtons) {
+      b.setAttribute('aria-pressed', String(b.dataset.viewButton === next));
+      if (b.closest('.switch-row')) b.tabIndex = b.dataset.viewButton === (next === 'network' ? 'map' : next) ? 0 : -1;
+    }
+    moreButton.classList.toggle('is-current', next === 'network');
+    setMore(false);
+    for (const node of explorer.querySelectorAll<HTMLElement>('[data-views]')) node.hidden = !(node.dataset.views ?? '').split(' ').includes(next);
+    drawings.show(next);
+    drawings.setPointed(null);
+    drawings.setSelected(state.node);
+    drawings.setPath(lastPath.nodes, lastPath.edges);
+    lightJob();
+    if (next === 'network') {
+      ensureRenderer();
+      renderer!.resize();
+    }
+    if (next === 'map') camera?.refresh();
+    updateNote();
+    updateFreeArea();
+    writeAddress();
+    if (options.focusButton) viewButtons.find((b) => b.dataset.viewButton === next)?.focus();
+    if (options.announce) {
+      const position = SWITCH_ORDER.indexOf(next as DrawnView);
+      say(`${VIEW_LABELS[next]}${position >= 0 ? `, view ${position + 1} of ${SWITCH_ORDER.length}` : ''}.${!note.hidden ? ' This page is not in this view.' : ''}`);
+    }
+    explorer.dataset.ready = 'true';
+  }
+
+  for (const b of viewButtons) b.addEventListener('click', () => void setView(b.dataset.viewButton as ViewName, { announce: true }));
+  switcher.querySelector('.switch-row')?.addEventListener('keydown', (ev) => {
+    const e = ev as KeyboardEvent;
+    const target = e.target instanceof HTMLButtonElement ? e.target : null;
+    if (!target?.dataset.viewButton) return;
+    const i = rowButtons.indexOf(target);
+    let j = -1;
+    if (e.key === 'ArrowRight') j = (i + 1) % rowButtons.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + rowButtons.length) % rowButtons.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = rowButtons.length - 1;
+    if (j < 0) return;
+    e.preventDefault();
+    void setView(rowButtons[j].dataset.viewButton as ViewName, { announce: true, focusButton: true });
+  });
+
   // ---- restore from the address -----------------------------------------
   const restored = queryToState(window.location.search, (id) => graph.byId.has(id), (id) => views.get(id)?.steps.length ?? null);
-  if (restored.node || restored.from || restored.to || restored.route) enterExploring();
-  if (restored.view === '3d') setMode('3d');
+  if (restored.node || restored.from || restored.to || restored.route || restored.view !== 'map') enterExploring();
+  state = { ...state, mode: restored.mode };
+  modeButton.setAttribute('aria-pressed', String(restored.mode === '3d'));
   if (restored.from) pathFrom.value = restored.from;
   if (restored.to) pathTo.value = restored.to;
+  drawings.show('map');
+  await drawings.ensure('map');
+  await setView(restored.view);
   updateFreeArea();
+  if (camera) camera.fit();
   select(restored.node, { announce: false });
   if (restored.from && restored.to) showPath(restored.from, restored.to, { announce: false });
   else state = { ...state, from: restored.from, to: restored.to };
   if (restored.route) showJob(restored.route, restored.step ?? null, { announce: false });
   writeAddress();
-
-  r.draw();
-  canvas.dataset.ready = 'true';
+  explorer.dataset.ready = 'true';
 }

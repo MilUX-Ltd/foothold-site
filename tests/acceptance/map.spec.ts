@@ -1,5 +1,9 @@
 // Acceptance tests 7 to 15 for the map page, against the fixture build
 // (FOOTHOLD_DATA_SOURCE=fixture). Tests 1 to 6 are unit tests in tests/unit.
+//
+// Since the four views, the canvas these tests were written for is the
+// network view, under "More" (view=network); the page is ready when
+// #explorer says so, and tests of the canvas itself open that view.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,17 +19,18 @@ const FRAMEWORK = 'Intelligence/defence-landscape/Frameworks/Example Supplier Fr
 const CLUSTER = 'CRM/networks/Example Regional Defence Cluster';
 const VAULT = '.';
 
-/** Opens the map and waits until the viewer has drawn its first frame. */
+/** Opens the map and waits until the viewer is ready; for the network view, until the canvas has drawn its first frame. */
 async function openMap(page: Page, query = '') {
   await page.goto(`/map/${query}`);
-  await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
+  if (query.includes('view=network')) await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
 }
 
 const stateParam = (page: Page, key: string) => new URL(page.url()).searchParams.get(key);
 
 test.describe('the map page', () => {
   test('7. shows a canvas and a list holding every node in the fixture', async ({ page }) => {
-    await openMap(page);
+    await openMap(page, '?view=network');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     await expect(page.locator('#map-canvas')).toBeVisible();
     const list = page.getByRole('region', { name: 'Every page on the map' });
@@ -111,7 +116,7 @@ test.describe('the map page', () => {
   test.describe('with reduced motion requested', () => {
     test.use({ reducedMotion: 'reduce' });
     test('12. nothing animates', async ({ page }) => {
-      await openMap(page);
+      await openMap(page, '?view=network');
       const canvas = page.locator('#map-canvas');
       await expect(canvas).toHaveAttribute('data-motion', 'reduced');
       const frames = async () => Number(await canvas.getAttribute('data-frames'));
@@ -147,7 +152,7 @@ test.describe('the map page', () => {
       });
     });
     const response = await page.goto(`/map/?node=${encodeURIComponent(FRAMEWORK)}`);
-    await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+    await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
     await page.waitForLoadState('networkidle');
     expect(outside).toEqual([]);
     expect(problems).toEqual([]);
@@ -179,7 +184,7 @@ test.describe('the map page', () => {
     const payload = toPayload(graph, computeLayout(graph));
     await page.route('**/map/graph.json', (route) => route.fulfill({ json: payload }));
     const [a, b] = [graph.nodes[3].id, graph.nodes[400].id];
-    await openMap(page, `?node=${encodeURIComponent(a)}`);
+    await openMap(page, `?view=network&node=${encodeURIComponent(a)}`);
     const timeClick = (selector: string) =>
       page.evaluate(async (sel) => {
         const target = document.querySelector<HTMLElement>(sel);

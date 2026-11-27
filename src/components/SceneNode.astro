@@ -1,0 +1,16 @@
+---
+// Renders one drawing (see src/lib/graph/view-scene.ts) as markup at build
+// time. Text and attribute values are escaped by Astro like any other; the
+// tree has already passed the allow-list, so nothing here can carry script or
+// a style attribute.
+import type { SceneChild } from '../lib/graph/view-scene';
+
+interface Props {
+  node: SceneChild;
+}
+const { node } = Astro.props;
+const Tag = typeof node === 'string' ? '' : node.t;
+const attrs = typeof node === 'string' ? {} : (node.a ?? {});
+const children = typeof node === 'string' ? [] : (node.c ?? []);
+---
+{typeof node === 'string' ? node : <Tag {...attrs}>{children.map((child) => <Astro.self node={child} />)}</Tag>}

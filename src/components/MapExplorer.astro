@@ -1,19 +1,28 @@
 ---
 // The map, as one component for two addresses. On the home page it opens in
-// the landing state: the headline over the map, the drawing fitted into the
-// space the headline leaves. On /map/ it opens in the exploring state. The
-// bundled viewer script moves from one to the other.
+// the landing state: the headline over the whole map. On /map/ it opens in
+// the exploring state. The bundled viewer script moves from one to the other.
 //
-// Everything here is ordinary HTML rendered at build time from the map file,
-// so without script the headline, the facts and the list of every page still
-// read. Controls that only work with script are hidden when script is off
-// (see explorer.css), and panels that open and close start closed.
+// Four views of the same pack, chosen from the switcher: the whole map, who
+// buys, how a job runs and at a glance, with the free-form network under
+// "More". The whole map is drawn here at build time, as SVG with real text,
+// so it reads without script; the other three are drawn at build time too and
+// fetched from /map/views/ when chosen (docs/adr/0008).
+//
+// Everything else is ordinary HTML rendered from the map file, so without
+// script the headline, the facts, the whole map and the list of every page
+// still read. Controls that only work with script are hidden when script is
+// off (see explorer.css), and panels that open and close start closed.
 import '../styles/explorer.css';
+import SceneNode from './SceneNode.astro';
 import { facts, listRoutes, loadMap } from '../lib/map';
 import { buildGraph, groupByKind, kindLabel, layerLabel } from '../lib/graph/model';
 import { edgeStyle, kindStyle, PALETTE, PATH_STYLE } from '../lib/graph/style';
 import { typeLabel } from '../lib/graph/connections';
 import { isQuietType } from '../lib/graph/edge-filter';
+import { DRAWN_VIEWS, VIEW_LABELS } from '../lib/graph/view-common';
+import { mapScene, narrowTreeScene, RELATION_WORDS } from '../lib/graph/view-scenes';
+import { sceneProblems } from '../lib/graph/view-scene';
 
 interface Props {
   /** Open in the landing state, with the headline over the map. */
@@ -39,7 +48,15 @@ const kindsByLayer = (['defence', 'business'] as const).map((layer) => ({
   groups: groups.filter((g) => g.layer === layer),
 }));
 
-// SVG marks for the key, drawn from the same values as the canvas.
+// The whole map, drawn now. The drawing is checked against the same allow-list as the fetched ones.
+const wholeMap = mapScene(graph, routes);
+const narrowTree = narrowTreeScene(graph, routes);
+for (const scene of [wholeMap, narrowTree]) {
+  const problems = sceneProblems(scene);
+  if (problems.length) throw new Error(`The whole map's drawing breaks the allow-list: ${problems.slice(0, 5).join('; ')}`);
+}
+
+// SVG marks for the network's key, drawn from the same values as the canvas.
 const mark = (kind: string, layer: 'defence' | 'business') => {
   const { colour, shape } = kindStyle(kind, layer);
   const fill = layer === 'defence' ? colour : PALETTE.white;
@@ -53,8 +70,11 @@ const tools = [
   { id: 'path', label: 'Find a path', panel: 'path' },
   { id: 'help', label: 'How to use the map', panel: 'map-howto' },
 ];
+const presentKinds = new Set(graph.nodes.map((n) => n.kind));
+const wheelKinds = ['organisation', 'programme', 'framework', 'portal', 'event-series', 'cluster', 'network'].filter((k) => presentKinds.has(k));
+const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes', 'step'].filter((t) => edgeTypes.includes(t));
 ---
-<div class="explorer" id="explorer" data-state={landing ? 'landing' : 'exploring'}>
+<div class="explorer" id="explorer" data-state={landing ? 'landing' : 'exploring'} data-view="map" data-ready="false">
   {landing ? (
     <div class="lead" id="lead">
       <p class="mono kicker"><span>Free to use ·</span> <span>public sources ·</span> <span>no sign-up</span></p>
@@ -75,30 +95,58 @@ const tools = [
   )}
   {landing && <div class="fade" aria-hidden="true"></div>}
 
-  <div class="map-stage">
-    <canvas
-      id="map-canvas"
-      class="map-canvas"
-      tabindex="0"
-      role="img"
-      aria-label="A drawing of every page in the pack and how they join. The list of every page on the map holds the same pages."
-      aria-describedby="map-help"
-      data-ready="false"
-      data-frames="0"
-    ></canvas>
-    <p class="map-waiting" id="map-waiting">
-      <span class="without-script">The drawing needs script. Every page on it is in the list of every page on the map.</span>
-      <span class="with-script" id="map-waiting-text">Drawing the map.</span>
-    </p>
+  <div class="view-switch needs-script" id="view-switch">
+    <div class="switch-row" role="group" aria-label="Views of the pack">
+      {DRAWN_VIEWS.map((view) => (
+        <button type="button" class="switch-btn" data-view-button={view} aria-pressed={view === 'map' ? 'true' : 'false'}>{VIEW_LABELS[view]}</button>
+      ))}
+      <button type="button" class="switch-btn switch-more" id="view-more" aria-expanded="false" aria-controls="view-more-menu">More</button>
+    </div>
+    <div class="switch-menu" id="view-more-menu" hidden>
+      <button type="button" class="switch-btn" data-view-button="network" aria-pressed="false">{VIEW_LABELS.network}</button>
+    </div>
+  </div>
+
+  <div class="map-stage" id="map-views" data-lit="">
+    <p class="view-note" id="view-note" hidden>This page is not in this view. <a href="?view=map" id="view-note-link">See it on the whole map.</a></p>
+    <div class="view-pane pane-map" data-view-pane="map">
+      <div class="vp-inner vp-map">
+        <div class="mv-stage" id="mv-stage">
+          <SceneNode node={wholeMap} />
+        </div>
+        <div class="mv-below">
+          <SceneNode node={narrowTree} />
+        </div>
+      </div>
+    </div>
+    {DRAWN_VIEWS.filter((v) => v !== 'map').map((view) => (
+      <div class="view-pane" data-view-pane={view} data-src={`/map/views/${view}.json`} hidden></div>
+    ))}
+    <div class="view-pane pane-network" data-view-pane="network" hidden>
+      <canvas
+        id="map-canvas"
+        class="map-canvas"
+        tabindex="0"
+        role="img"
+        aria-label="A drawing of every page in the pack and how they join. The list of every page on the map holds the same pages."
+        aria-describedby="map-help"
+        data-ready="false"
+        data-frames="0"
+      ></canvas>
+      <p class="map-waiting" id="map-waiting">
+        <span class="without-script">The drawing needs script. Every page on it is in the list of every page on the map.</span>
+        <span class="with-script" id="map-waiting-text">Drawing the map.</span>
+      </p>
+    </div>
   </div>
 
   <div class="map-dock needs-script">
     <div class="map-tools" role="group" aria-label="Map controls">
-      <div class="tool-group">
+      <div class="tool-group" data-views="map network">
         <button type="button" class="map-btn map-btn-square" id="map-zoom-in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>
         <button type="button" class="map-btn map-btn-square" id="map-zoom-out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>
         <button type="button" class="map-btn" id="map-reset">Reset view</button>
-        <button type="button" class="map-btn" id="map-mode" aria-pressed="false">3D view</button>
+        <button type="button" class="map-btn" id="map-mode" aria-pressed="false" data-views="network">3D view</button>
       </div>
       <div class="tool-group">
         {tools.map((t) => (
@@ -189,51 +237,144 @@ const tools = [
           <button type="button" class="panel-close" data-close="map-key" aria-label="Close the key"><span aria-hidden="true">×</span></button>
         </div>
         <div class="panel-body key-body">
-          {kindsByLayer.map(({ layer, groups: layerGroups }) => (
+          {/* The whole map */}
+          <div class="key-view" data-views="map">
             <div class="key-block">
-              <h3 class="key-title">{layerLabel(layer)}<span>{layer === 'defence' ? 'filled marks' : 'outlined marks'}</span></h3>
+              <h3 class="key-title">{layerLabel('defence')}<span>filled circles, sized by named connections</span></h3>
               <ul class="legend-list">
-                {layerGroups.map((g) => {
-                  const m = mark(g.kind, g.layer);
+                {wheelKinds.map((kind) => (
+                  <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class={`wheel-mk k-${kind}`}><circle class="sh" r="5.5" /></g></svg>{kindLabel(kind)}</li>
+                ))}
+                <li class="legend-wide"><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="wheel-mk q k-organisation"><circle class="sh" r="3.2" /></g></svg>A page with no named connection yet</li>
+              </ul>
+            </div>
+            <div class="key-block">
+              <h3 class="key-title">{layerLabel('business')}<span>outlined shapes, filled when a skill uses them</span></h3>
+              <ul class="legend-list">
+                {['vault', 'folder', 'skill', 'route'].map((kind) => (
+                  <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class={`tree-mk k-${kind}`}>{kind === 'folder' ? <rect class="sh" x="-5.5" y="-5.5" width="11" height="11" /> : kind === 'skill' ? <polygon class="sh" points="0,-6.5 6.5,0 0,6.5 -6.5,0" /> : kind === 'route' ? <polygon class="sh" points="-6,4.5 0,-5.7 6,4.5" /> : <polygon class="sh" points="6.5,0 3.3,5.6 -3.3,5.6 -6.5,0 -3.3,-5.6 3.3,-5.6" />}</g></svg>{kind === 'route' ? 'Jobs' : kindLabel(kind)}</li>
+                ))}
+              </ul>
+            </div>
+            <div class="key-block">
+              <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
+              <ul class="legend-list">
+                {mapLines.map((type) => (
+                  <li><svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true"><path class={`ln t-${type}`} d="M1,5 H35" /></svg>{typeLabel(type, 'outgoing')}</li>
+                ))}
+                <li class="legend-wide"><svg class="legend-line" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path class="band" d="M1,2 H35 V10 H1 Z" /></svg>Filed in your vault, as wide as the number of pages</li>
+                <li class="legend-wide"><svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true"><path class="path-line" d="M1,5 H35" /></svg>a path you asked for</li>
+              </ul>
+            </div>
+          </div>
+          {/* Who buys */}
+          <div class="key-view" data-views="buyers" hidden>
+            <div class="key-block">
+              <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
+              <ul class="legend-list legend-one">
+                {(['customer', 'operator', 'service'] as const).map((type) => (
+                  <li><svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true"><path class={`ln t-${type}`} d="M1,5 H35" /></svg>{RELATION_WORDS[type]}</li>
+                ))}
+              </ul>
+            </div>
+            <div class="key-block">
+              <h3 class="key-title">Marks</h3>
+              <ul class="legend-list">
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-programme"><circle class="sh" r="5" /></g></svg>Programmes</li>
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-framework"><circle class="sh" r="5" /></g></svg>Frameworks</li>
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-portal"><rect class="sh" x="-4.5" y="-4.5" width="9" height="9" /></g></svg>Portals</li>
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-event-series"><polygon class="sh" points="-5.5,4.1 0,-5.2 5.5,4.1" /></g></svg>Event series</li>
+                <li class="legend-wide"><svg class="legend-mark" width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><g class="bv-body"><rect class="box" x="1" y="2" width="20" height="12" /><rect class="bar" x="1" y="2" width="4" height="12" /></g></svg>A body the work is for or that runs it, with its count of lines</li>
+              </ul>
+            </div>
+          </div>
+          {/* How a job runs */}
+          <div class="key-view" data-views="jobs" hidden>
+            <div class="key-block">
+              <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
+              <ul class="legend-list legend-one">
+                {[['reads', 'reads'], ['writes', 'writes'], ['step', 'a step in the job']].map(([type, words]) => (
+                  <li><svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true"><path class={`ln t-${type}`} d="M1,5 H35" /></svg>{words}</li>
+                ))}
+              </ul>
+            </div>
+            <div class="key-block">
+              <h3 class="key-title">Marks</h3>
+              <ul class="legend-list">
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="step k-skill"><polygon class="sh fill" points="0,-6.5 6.5,0 0,6.5 -6.5,0" /></g></svg>Skills</li>
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="job-folder k-folder"><rect class="sh fill" x="-5.5" y="-5.5" width="11" height="11" /></g></svg>Folders</li>
+                <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="job-folder k-vault"><polygon class="sh" points="6.5,0 3.3,5.6 -3.3,5.6 -6.5,0 -3.3,-5.6 3.3,-5.6" /></g></svg>The whole vault</li>
+              </ul>
+            </div>
+          </div>
+          {/* At a glance */}
+          <div class="key-view" data-views="glance" hidden>
+            <div class="key-block">
+              <h3 class="key-title">Shade<span>by named connections</span></h3>
+              <ul class="legend-list legend-one">
+                {[[2, 'five or more named connections'], [1, 'at least one'], [0, 'none yet']].map(([shade, words]) => (
+                  <li><svg class={`legend-mark gl-tile sh-${shade} k-organisation`} width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><rect class="sh" x="1" y="1" width="16" height="16" /></svg>{words}</li>
+                ))}
+              </ul>
+            </div>
+            <div class="key-block">
+              <h3 class="key-title">Shape</h3>
+              <ul class="legend-list">
+                <li><svg class="legend-mark gl-tile sh-2 k-organisation" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><rect class="sh" x="1" y="1" width="16" height="16" /></svg>A defence page or a folder</li>
+                <li><svg class="legend-mark gl-tile sh-2 k-skill" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="9,0.8 17.2,9 9,17.2 0.8,9" /></svg>Skills</li>
+                <li><svg class="legend-mark gl-tile sh-2 k-route" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="1,16.5 9,1.5 17,16.5" /></svg>Jobs</li>
+                <li><svg class="legend-mark gl-tile sh-0 k-vault" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="17.2,9 13.1,16.1 4.9,16.1 0.8,9 4.9,1.9 13.1,1.9" /></svg>The vault</li>
+              </ul>
+            </div>
+          </div>
+          {/* The network */}
+          <div class="key-view" data-views="network" hidden>
+            {kindsByLayer.map(({ layer, groups: layerGroups }) => (
+              <div class="key-block">
+                <h3 class="key-title">{layerLabel(layer)}<span>{layer === 'defence' ? 'filled marks' : 'outlined marks'}</span></h3>
+                <ul class="legend-list">
+                  {layerGroups.map((g) => {
+                    const m = mark(g.kind, g.layer);
+                    return (
+                      <li>
+                        <svg class="legend-mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                          {m.shape === 'circle' && <circle cx="8" cy="8" r="6" fill={m.fill} stroke={m.stroke} stroke-width="1" />}
+                          {m.shape === 'square' && <rect x="2.5" y="2.5" width="11" height="11" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                          {m.shape === 'diamond' && <polygon points="8,1.5 14.5,8 8,14.5 1.5,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                          {m.shape === 'triangle' && <polygon points="8,2 14.5,14 1.5,14" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                          {m.shape === 'hexagon' && <polygon points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                        </svg>
+                        {kindLabel(g.kind)} <span class="legend-count">{g.nodes.length}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+            <div class="key-block">
+              <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
+              <ul class="legend-list">
+                {edgeTypes.map((type) => {
+                  const s = edgeStyle(type);
                   return (
                     <li>
-                      <svg class="legend-mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                        {m.shape === 'circle' && <circle cx="8" cy="8" r="6" fill={m.fill} stroke={m.stroke} stroke-width="1" />}
-                        {m.shape === 'square' && <rect x="2.5" y="2.5" width="11" height="11" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
-                        {m.shape === 'diamond' && <polygon points="8,1.5 14.5,8 8,14.5 1.5,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
-                        {m.shape === 'triangle' && <polygon points="8,2 14.5,14 1.5,14" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
-                        {m.shape === 'hexagon' && <polygon points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                      <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
+                        <line x1="1" y1="5" x2="35" y2="5" stroke={s.colour} stroke-width={Math.max(s.width, 1.2)} stroke-dasharray={dash(s.dash)} />
                       </svg>
-                      {kindLabel(g.kind)} <span class="legend-count">{g.nodes.length}</span>
+                      {typeLabel(type, 'outgoing')}{isQuietType(type) && <span aria-hidden="true" class="legend-star">*</span>}
                     </li>
                   );
                 })}
+                <li class="legend-wide">
+                  <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
+                    <line x1="1" y1="5" x2="35" y2="5" stroke={PATH_STYLE.colour} stroke-width={PATH_STYLE.width} />
+                  </svg>
+                  a path you asked for
+                </li>
               </ul>
+              <p class="key-note"><span aria-hidden="true" class="legend-star">*</span> “Mentions” and “filed in” lines are many, so they are hidden until you point at a page or choose one.</p>
+              <button type="button" class="map-btn key-toggle" id="edges-all" aria-pressed="false">Show all “mentions” and “filed in” lines</button>
             </div>
-          ))}
-          <div class="key-block">
-            <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
-            <ul class="legend-list">
-              {edgeTypes.map((type) => {
-                const s = edgeStyle(type);
-                return (
-                  <li>
-                    <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
-                      <line x1="1" y1="5" x2="35" y2="5" stroke={s.colour} stroke-width={Math.max(s.width, 1.2)} stroke-dasharray={dash(s.dash)} />
-                    </svg>
-                    {typeLabel(type, 'outgoing')}{isQuietType(type) && <span aria-hidden="true" class="legend-star">*</span>}
-                  </li>
-                );
-              })}
-              <li class="legend-wide">
-                <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
-                  <line x1="1" y1="5" x2="35" y2="5" stroke={PATH_STYLE.colour} stroke-width={PATH_STYLE.width} />
-                </svg>
-                a path you asked for
-              </li>
-            </ul>
-            <p class="key-note"><span aria-hidden="true" class="legend-star">*</span> “Mentions” and “filed in” lines are many, so they are hidden until you point at a page or choose one.</p>
-            <button type="button" class="map-btn key-toggle" id="edges-all" aria-pressed="false">Show all “mentions” and “filed in” lines</button>
           </div>
         </div>
       </section>
@@ -244,7 +385,13 @@ const tools = [
           <button type="button" class="panel-close" data-close="map-howto" aria-label="Close How to use the map"><span aria-hidden="true">×</span></button>
         </div>
         <div class="panel-body">
-          <p class="map-help" id="map-help">
+          <p class="map-help" data-views="map buyers jobs glance">
+            Choose a view above the drawing; the left and right arrow keys move between them. Point at a page to light it and its named connections, and choose it to select it and list them. In the drawing, Tab reaches the pages and the arrow keys move from one to the next; Enter chooses and Escape clears.
+          </p>
+          <p class="map-help" data-views="map">
+            On the whole map, drag to move and scroll or pinch to zoom, or use the buttons; with the drawing focused, plus and minus zoom and 0 fits it again. More names appear as you zoom in.
+          </p>
+          <p class="map-help" id="map-help" data-views="network" hidden>
             Drag to move and scroll to zoom, or use the buttons. Choose a point to select it and list its connections. With the map focused, the arrow keys move it, plus and minus zoom, 0 fits the whole map and Escape clears the selection. In the 3D view, dragging turns the map; hold shift to move it.
           </p>
         </div>

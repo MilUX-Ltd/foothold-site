@@ -32,7 +32,7 @@ const routes = listRoutes(loadMap());
               </li>
             ))}
           </ol>
-          <p class="route-more"><a href={`/map/?route=${encodeURIComponent(route.id)}`} aria-describedby={`route-${i}`}>See it on the map</a></p>
+          <p class="route-more"><a href={`/map/?view=jobs&route=${encodeURIComponent(route.id)}`} aria-describedby={`route-${i}`}>See it on the map</a></p>
         </article>
       ))}
     </div>

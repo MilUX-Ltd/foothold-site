@@ -1,38 +1,35 @@
 // Acceptance tests 4 to 13 for the home page and the map's landing and
 // exploring states, against the fixture build (FOOTHOLD_DATA_SOURCE=fixture).
 // Tests 1 to 3 are unit tests in tests/unit (fit, labels, edge filter).
+//
+// Since the four views, the home page holds the whole map, drawn as SVG
+// (#map-drawing), in place of the canvas, which is now the network view under
+// "More". The page is ready when #explorer says so; the drawing publishes
+// where its marks lie (data-node-bounds) and counts its frames (data-frames)
+// as the canvas did.
 import { expect, test, type Page } from '@playwright/test';
 import fixture from '../fixtures/foothold-map.json' with { type: 'json' };
 import { expectNoAxeViolations } from '../support/axe';
 
 const FRAMEWORK = 'Intelligence/defence-landscape/Frameworks/Example Supplier Framework';
 
-/** Opens a page holding the map and waits until the viewer has drawn. */
+/** Opens a page holding the map and waits until the viewer is ready; for the network view, until the canvas has drawn. */
 async function openMap(page: Page, path: string) {
   await page.goto(path);
-  await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
+  if (path.includes('view=network')) await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
 }
 
 const explorer = (page: Page) => page.locator('#explorer');
 const headline = (page: Page) => page.locator('#lead');
 
-/** Where a node is drawn, in page coordinates, read from the flat view's published transform. */
-async function nodeOnPage(page: Page, id: string) {
-  const payload = (await (await page.request.get('/map/graph.json')).json()) as { nodes: { id: string; x: number; y: number }[] };
-  const node = payload.nodes.find((n) => n.id === id);
-  if (!node) throw new Error(`no node ${id} in the map data`);
-  const view = (await page.locator('#map-canvas').getAttribute('data-view')) ?? '';
-  const [scale, offsetX, offsetY] = view.split(' ').map(Number);
-  const box = (await page.locator('#map-canvas').boundingBox())!;
-  return { x: box.x + node.x * scale + offsetX, y: box.y + node.y * scale + offsetY };
-}
 
 test.describe('the home page', () => {
   test('4. shows one level-one heading, the canvas, the facts and a button named "Explore the map"', async ({ page }) => {
     await openMap(page, '/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.locator('#map-canvas')).toBeVisible();
+    await expect(page.locator('#map-drawing')).toBeVisible();
     const facts = page.locator('dl.facts');
     await expect(facts).toBeVisible();
     for (const label of ['Defence pages', 'Skills', 'Folders', 'Job routes', 'Pack version']) await expect(facts).toContainText(label);
@@ -45,8 +42,8 @@ test.describe('the home page', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openMap(page, '/');
     const lead = (await headline(page).boundingBox())!;
-    const canvas = (await page.locator('#map-canvas').boundingBox())!;
-    const bounds = (await page.locator('#map-canvas').getAttribute('data-node-bounds')) ?? '';
+    const canvas = (await page.locator('#map-drawing').boundingBox())!;
+    const bounds = (await page.locator('#map-drawing').getAttribute('data-node-bounds')) ?? '';
     const [left, top, right, bottom] = bounds.split(' ').map(Number);
     for (const v of [left, top, right, bottom]) expect(Number.isFinite(v)).toBe(true);
     const drawn = { left: canvas.x + left, top: canvas.y + top, right: canvas.x + right, bottom: canvas.y + bottom };
@@ -82,8 +79,7 @@ test.describe('the home page', () => {
   test('8. choosing a node on the home page puts the page into the exploring state and selects that node', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openMap(page, '/');
-    const at = await nodeOnPage(page, FRAMEWORK);
-    await page.mouse.click(at.x, at.y);
+    await page.locator(`#map-drawing .mk[data-id="${FRAMEWORK}"]`).click();
     await expect(explorer(page)).toHaveAttribute('data-state', 'exploring');
     await expect(headline(page)).toBeHidden();
     await expect(page.getByRole('region', { name: 'Selected page' }).getByRole('heading', { name: 'Example Supplier Framework' })).toBeVisible();
@@ -91,7 +87,7 @@ test.describe('the home page', () => {
   });
 
   test('9. the key turns the "mentions" and "filed in" lines on and off, and says so', async ({ page }) => {
-    await openMap(page, '/map/');
+    await openMap(page, '/map/?view=network');
     const canvas = page.locator('#map-canvas');
     const keyButton = page.getByRole('button', { name: 'Key', exact: true });
     await expect(keyButton).toHaveAttribute('aria-expanded', 'false');
@@ -127,12 +123,12 @@ test.describe('the home page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
     const before = await page.evaluate(() => {
       const h1 = document.querySelector('h1')!;
-      const canvas = document.getElementById('map-canvas')!;
+      const canvas = document.getElementById('map-drawing')!;
       return Boolean(h1.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     expect(before).toBe(true);
     const h1 = (await page.getByRole('heading', { level: 1 }).boundingBox())!;
-    const canvas = (await page.locator('#map-canvas').boundingBox())!;
+    const canvas = (await page.locator('#map-drawing').boundingBox())!;
     expect(h1.y + h1.height).toBeLessThanOrEqual(canvas.y);
   });
 
@@ -164,7 +160,8 @@ test.describe('the home page', () => {
       await expect(list).toBeVisible();
       await expect(list.locator('button[data-id]')).toHaveCount(fixture.nodes.length);
       for (const node of fixture.nodes) await expect(list).toContainText(node.name);
-      await expect(page.getByText('The drawing needs script.')).toBeVisible();
+      // The whole map is drawn at build time, so it shows without script.
+      await expect(page.locator('#map-drawing')).toBeVisible();
       // A button that would do nothing without script is not offered.
       await expect(page.getByRole('button', { name: 'Explore the map', exact: true })).toHaveCount(0);
     });
@@ -174,7 +171,7 @@ test.describe('the home page', () => {
     test.use({ reducedMotion: 'reduce' });
     test('13. the change from landing to exploring does not animate', async ({ page }) => {
       await openMap(page, '/');
-      const canvas = page.locator('#map-canvas');
+      const canvas = page.locator('#map-drawing');
       const frames = async () => Number(await canvas.getAttribute('data-frames'));
       const before = await frames();
       const after = await page.evaluate(() => {

@@ -165,7 +165,7 @@ describe('the address', () => {
     { ...DEFAULT_STATE, route: TENDER, step: null },
     { ...DEFAULT_STATE, route: TENDER, step: 1 },
     { ...DEFAULT_STATE, route: TENDER, step: 3 },
-    { ...DEFAULT_STATE, node: 'CRM', view: '3d', route: DATA, step: 2 },
+    { ...DEFAULT_STATE, node: 'CRM', view: 'network', mode: '3d', route: DATA, step: 2 },
   ])('5. round-trips route and step: %o', (state) => {
     expect(read(stateToQuery(state))).toEqual(state);
   });

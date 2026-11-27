@@ -1,6 +1,10 @@
 // Acceptance tests 6 to 14 for the job routes on the map, against the fixture
 // build (FOOTHOLD_DATA_SOURCE=fixture). Tests 1 to 5 are unit tests in
 // tests/unit/graph-routes.test.ts.
+//
+// Since the four views, the map opens on the whole map, drawn as SVG: the page
+// is ready when #explorer says so, what a job lights is read from #map-views
+// (data-lit), and the whole map's camera counts its frames on #map-drawing.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import fixture from '../fixtures/foothold-map.json' with { type: 'json' };
 import { expectNoAxeViolations } from '../support/axe';
@@ -11,7 +15,7 @@ const PANEL = 'Jobs the pack already knows how to do';
 
 async function openMap(page: Page, query = '') {
   await page.goto(`/map/${query}`);
-  await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
 }
 
 const param = (page: Page, key: string) => new URL(page.url()).searchParams.get(key);
@@ -61,7 +65,7 @@ test.describe('job routes on the map', () => {
     await expect(panel.getByRole('heading', { name: tender.name, level: 3 })).toBeVisible();
     await expect(panel.locator('.job-steps button')).toHaveText(tender.steps.map((s) => s.skill));
     await expect.poll(() => [param(page, 'route'), param(page, 'step')]).toEqual([TENDER, null]);
-    await expect(page.locator('#map-canvas')).not.toHaveAttribute('data-lit', '');
+    await expect(page.locator('#map-views')).not.toHaveAttribute('data-lit', '');
 
     await panel.getByRole('button', { name: 'Next step', exact: true }).click();
     await expectTenderStep(page, 1);
@@ -153,7 +157,7 @@ test.describe('job routes on the map', () => {
     await openMap(page, '?route=No%2Fsuch%2Froute&step=1');
     await expect(jobsControl(page)).toHaveAttribute('aria-expanded', 'false');
     await expect(jobsPanel(page)).toBeHidden();
-    await expect(page.locator('#map-canvas')).toHaveAttribute('data-lit', '');
+    await expect(page.locator('#map-views')).toHaveAttribute('data-lit', '');
     await expect.poll(() => [param(page, 'route'), param(page, 'step')]).toEqual([null, null]);
   });
 
@@ -168,7 +172,7 @@ test.describe('job routes on the map', () => {
     }
     const card = page.locator('article', { has: page.getByRole('heading', { name: tender.name, exact: true }) });
     await card.getByRole('link', { name: 'See it on the map', exact: true }).click();
-    await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+    await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
     await expect(jobsPanel(page).getByRole('heading', { name: tender.name, level: 3 })).toBeVisible();
     await expect.poll(() => param(page, 'route')).toBe(TENDER);
   });
@@ -176,7 +180,7 @@ test.describe('job routes on the map', () => {
   test('12. "Close the job" clears route and step from the address and returns the ordinary map', async ({ page }) => {
     await openMap(page, `?route=${encodeURIComponent(TENDER)}&step=1`);
     await expectTenderStep(page, 1);
-    const canvas = page.locator('#map-canvas');
+    const canvas = page.locator('#map-views');
     await expect(canvas).not.toHaveAttribute('data-lit', '');
     await jobsPanel(page).getByRole('button', { name: 'Close the job', exact: true }).click();
     await expect.poll(() => [param(page, 'route'), param(page, 'step')]).toEqual([null, null]);
@@ -191,7 +195,7 @@ test.describe('job routes on the map', () => {
     await page.getByLabel('To', { exact: true }).selectOption(TENDER);
     await page.getByRole('button', { name: 'Find the path' }).click();
     await expect.poll(() => [param(page, 'route'), param(page, 'step')]).toEqual([null, null]);
-    await expect(page.locator('#map-canvas')).toHaveAttribute('data-lit', '');
+    await expect(page.locator('#map-views')).toHaveAttribute('data-lit', '');
   });
 
   test('13. no automated accessibility violations with a job open and with a step open', async ({ page }) => {
@@ -236,8 +240,8 @@ test.describe('job routes on the map', () => {
     test('14. moving between steps does not animate', async ({ page }) => {
       await openMap(page, `?route=${encodeURIComponent(TENDER)}`);
       await expect(jobsPanel(page).getByRole('heading', { name: tender.name, level: 3 })).toBeVisible();
-      const canvas = page.locator('#map-canvas');
-      await expect(canvas).toHaveAttribute('data-motion', 'reduced');
+      await expect(page.locator('#map-views')).toHaveAttribute('data-motion', 'reduced');
+      const canvas = page.locator('#map-drawing');
       await page.waitForTimeout(300);
       const frames = async () => Number(await canvas.getAttribute('data-frames'));
       for (const button of ['Next step', 'Next step', 'Previous step']) {
