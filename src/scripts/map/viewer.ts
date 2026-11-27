@@ -124,7 +124,8 @@ export async function startViewer(): Promise<void> {
     const container: Rect = { left: 0, top: 0, width: c.width, height: c.height };
     const obstacles: Rect[] = [];
     for (const node of [lead, list, tools, stack, switcher, note]) {
-      if (!shown(node)) continue;
+      // The headline is on its way out once exploring starts, though it is still fading.
+      if (!shown(node) || (node === lead && explorer.dataset.state !== 'landing')) continue;
       const r = node.getBoundingClientRect();
       obstacles.push({ left: r.left - c.left, top: r.top - c.top, width: r.width, height: r.height });
     }

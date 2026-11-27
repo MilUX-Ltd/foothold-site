@@ -190,10 +190,10 @@ export function mapScene(graph: Graph, routes: readonly RouteInput[]): SceneEl {
     return `M${p(a0)} A${r},${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p(a1)}`;
   };
   const groupRules = L.wheel.groups.map((g) => h('path', { class: cls('garc', `g-${g.ring}`), d: arcPath(n1(g.r1 + (g.ring === 'outer' ? 8 : 7)), g.a0 + 0.01, g.a1 - 0.01) }));
-  // The bands' title sits over the middle of the topmost band.
   const top = [...L.bands].sort((a, b) => a.end.y - b.end.y)[0];
-  const filedLabelX = top ? n1((top.start.x + top.end.x) / 2) : W.x;
-  const bandsTop = top ? n1((top.start.y + top.end.y) / 2 - top.width / 2 - 16) : W.y;
+  // The title sits where the bands arrive, clear of the group names round the wheel.
+  const filedLabelX = top ? n1(L.treeAt.x - 14) : W.x;
+  const bandsTop = top ? n1(top.end.y - 18) : W.y;
   const steps = Array.from({ length: STATIC_STEP + 1 }, (_, i) => `z${i}`);
 
   return h(
@@ -230,14 +230,14 @@ export function mapScene(graph: Graph, routes: readonly RouteInput[]): SceneEl {
         'g',
         { class: 'bands di-3' },
         L.bands.map((b) => h('path', { class: 'band', 'data-id': b.folder, d: b.d }, h('title', {}, `${pagesLabel(b.count)} filed in ${b.folder}`))),
-        L.bands.length ? h('text', { class: 'filed-title', x: filedLabelX, y: bandsTop, 'text-anchor': 'middle' }, 'Filed in your vault'.toUpperCase()) : null,
+        L.bands.length ? h('text', { class: 'filed-title', x: filedLabelX, y: bandsTop, 'text-anchor': 'end' }, 'Filed in your vault'.toUpperCase()) : null,
       ),
       h(
         'g',
         { class: 'lines di-3' },
         L.wheel.edges.map((e) => h('path', { class: cls('ln', `t-${e.type}`), 'data-from': e.from, 'data-to': e.to, d: e.d })),
       ),
-      treeDrawing(graph, L.tree, L.treeAt, { links: true, place: true }),
+      h('g', { class: 'biz' }, treeDrawing(graph, L.tree, L.treeAt, { links: true, place: true })),
       h('g', { class: 'marks' }, wheelMarks),
       h('g', { class: 'path-layer' }),
       h('g', { class: 'labels' }, labels),

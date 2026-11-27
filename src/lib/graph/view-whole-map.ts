@@ -71,7 +71,7 @@ export const GROUP_STYLE: TextStyle = { size: 10.5, mono: true, tracking: 0.12 }
 const LABEL_HEIGHT = 15;
 const ARC_HEIGHT = 14;
 /** How many of the busiest hubs may label over minor marks. */
-const MAJOR_HUBS = 14;
+const MAJOR_HUBS = 20;
 const LABEL_GAP = 4;
 const LABEL_MAX = 190;
 const PER_PAGE = 0.115;
@@ -115,7 +115,7 @@ export function wholeMapLayout(graph: Graph, routes: readonly RouteInput[]): Who
   const narrowTree = treeLayout(graph, routes, { narrow: true });
   const outer = Math.max(wheel.radius, 120);
   const wheelAt = { x: r1(outer + 90), y: r1(Math.max(outer + 60, tree.height / 2)) };
-  const treeAt = { x: r1(wheelAt.x + outer + 200), y: r1(Math.max(10, wheelAt.y - tree.height / 2)) };
+  const treeAt = { x: r1(wheelAt.x + outer + 170), y: r1(Math.max(10, wheelAt.y - tree.height / 2)) };
   const width = r1(treeAt.x + tree.width + 20);
   const height = r1(Math.max(wheelAt.y + outer + 60, treeAt.y + tree.height + 20));
   // The wheel's lines, drawn where the wheel sits.
@@ -140,7 +140,7 @@ function bandsLayout(graph: Graph, wheel: WheelLayout, wheelAt: { x: number; y: 
   const gap = 5;
   const stack = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, folders.length - 1);
   // The bands leave from the inside edge of the outer ring's gap, stacked about the wheel's centre line.
-  const x0 = wheelAt.x + Math.min(wheel.radius - 30, 290);
+  const x0 = wheelAt.x + Math.min(wheel.radius - 30, 380);
   let y = wheelAt.y - stack / 2;
   return folders.map((folder, i) => {
     const w = widths[i];
@@ -206,7 +206,7 @@ interface Request {
 }
 
 /** The fewest named connections a page needs to be named at each step of the zoom, so the overview names only the hubs. */
-const MIN_DEGREE = [8, 6, 5, 4, 3, 2, 1, 0, 0, 0];
+const MIN_DEGREE = [6, 5, 4, 3, 2, 2, 1, 0, 0, 0];
 
 function hubOptions(m: WheelMark, w: number): Request['options'] {
   const g = m.r + LABEL_GAP;

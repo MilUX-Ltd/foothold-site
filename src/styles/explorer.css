@@ -180,9 +180,12 @@
 .tree-mk > .ts { transform: scale(min(max(1, calc(0.6 * var(--u, 1))), calc(1.3 * var(--u, 1)))); }
 .ln.on-ask { display: none; }
 .ln.on-ask.is-lit, .ln.on-ask.is-near, .ln.on-ask.r-strong, .ln.on-ask.r-faint, .ln.on-ask.on-path { display: inline; }
-/* The landing view leads with the wheel and the folders; the jobs and skills join on exploring. */
-.mv .tree-side { transition: opacity 0.3s ease; }
-.explorer[data-state='landing'] .mv .tree-side { opacity: 0; animation: none; }
+/* With script, the landing view leads with the wheel alone; the business structure and the bands
+   to it join as the view pulls back on exploring. Without script the whole drawing is simply there. */
+.mv .biz, .mv .bands { transition: opacity 0.5s ease 0.15s, visibility 0s; }
+@media (scripting: enabled) {
+  .explorer[data-state='landing'] .mv .biz, .explorer[data-state='landing'] .mv .bands { opacity: 0; visibility: hidden; animation: none; transition: none; }
+}
 .tt-count { font-family: var(--font-mono); font-weight: 500; font-size: min(max(11px, calc(8px * var(--u, 1))), calc(13px * var(--u, 1))); letter-spacing: 0.04em; fill: var(--clay); paint-order: stroke; stroke: var(--paper); stroke-width: 6px; stroke-linejoin: round; }
 .tree-guide { fill: none; stroke: #c9c8bd; stroke-width: 1.5; }
 .leader { fill: none; stroke: #8c948d; stroke-width: 1px; stroke-dasharray: 1 3; vector-effect: non-scaling-stroke; }

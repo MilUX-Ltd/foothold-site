@@ -46,9 +46,8 @@ export class MapCamera {
   reducedMotion: boolean;
   /** Fit to the wheel alone (at phone width the tree sits beneath it), or to everything. */
   wheelOnly = false;
-  /** Fit to the wheel and the folders, as the landing view does. */
+  /** Fit to the wheel alone, as the landing view does: the business structure joins on exploring. */
   leading = false;
-  private readonly lead: Box;
   private readonly all: Box;
   private readonly wheel: Box;
 
@@ -59,8 +58,6 @@ export class MapCamera {
     const [cx, cy, r] = n(svg.dataset.wheel);
     const [tx, ty, tw, th] = n(svg.dataset.tree);
     this.wheel = [cx - r - 8, cy - r - 8, cx + r + 8, cy + r + 8];
-    const folders = Number(svg.dataset.folders);
-    this.lead = Number.isFinite(folders) ? [this.wheel[0], Math.min(this.wheel[1], ty), folders, Math.max(this.wheel[3], ty + th)] : this.wheel;
     this.all = Number.isFinite(tx) ? [Math.min(this.wheel[0], tx), Math.min(this.wheel[1], ty), Math.max(this.wheel[2], tx + tw), Math.max(this.wheel[3], ty + th)] : this.wheel;
   }
 
@@ -95,7 +92,7 @@ export class MapCamera {
   }
 
   private box(): Box {
-    return this.wheelOnly ? this.wheel : this.leading ? this.lead : this.all;
+    return this.wheelOnly || this.leading ? this.wheel : this.all;
   }
 
   /** Zooms by a factor about a point on the drawing (its centre by default). */

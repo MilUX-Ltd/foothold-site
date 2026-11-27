@@ -192,7 +192,7 @@ export function byName(a: GraphNode, b: GraphNode): number {
 // layout places every label for each step of this ladder (screen pixels per
 // map unit); the page shows a label from its step upwards.
 
-export const ZOOM_STEPS: readonly number[] = [0.4, 0.52, 0.68, 0.88, 1.15, 1.5, 1.95, 2.55, 3.3, 4.3];
+export const ZOOM_STEPS: readonly number[] = [0.4, 0.52, 0.66, 0.88, 1.15, 1.5, 1.95, 2.55, 3.3, 4.3];
 /** The step drawn without script, when the drawing is simply scaled to the page. */
 export const STATIC_STEP = 2;
 

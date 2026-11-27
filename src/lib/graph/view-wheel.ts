@@ -72,11 +72,11 @@ export interface WheelLayout {
 }
 
 /** Radii of the family's rings by depth. Deeper levels step out more slowly. */
-const DEPTH_RADIUS = [0, 76, 124, 160, 186];
-const STAGGER = 13;
-const MIDDLE_RINGS = [222, 243];
-const OUTER_START = 296;
-const OUTER_STEP = 18;
+const DEPTH_RADIUS = [0, 100, 162, 208, 242];
+const STAGGER = 17;
+const MIDDLE_RINGS = [290, 317];
+const OUTER_START = 386;
+const OUTER_STEP = 22;
 const GROUP_GAP = 0.055;
 /** Half the width of the gap on the right of the outer ring. */
 const BAND_GAP = 0.3;
@@ -92,7 +92,7 @@ const polar = (r: number, a: number) => ({ x: r1(r * Math.cos(a)), y: r1(r * Mat
 const ra = (a: number) => Math.round(a * 1000) / 1000;
 
 function depthRadius(depth: number): number {
-  return depth < DEPTH_RADIUS.length ? DEPTH_RADIUS[depth] : DEPTH_RADIUS[DEPTH_RADIUS.length - 1] + (depth - DEPTH_RADIUS.length + 1) * 22;
+  return depth < DEPTH_RADIUS.length ? DEPTH_RADIUS[depth] : DEPTH_RADIUS[DEPTH_RADIUS.length - 1] + (depth - DEPTH_RADIUS.length + 1) * 28;
 }
 
 export interface WheelOptions {
