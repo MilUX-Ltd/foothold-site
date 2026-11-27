@@ -136,6 +136,8 @@ export async function startViewer(): Promise<void> {
 
   // ---- landing and exploring ------------------------------------------------
   const isLanding = () => explorer.dataset.state === 'landing';
+  /** After Explore the pointer rests where the button was, now over the map: nothing is pointed at until it moves. */
+  let pointerStill = false;
   /** Focus goes to the search box, or to the button that opens the list while it is folded. */
   function focusList() {
     const toggle = document.getElementById('list-toggle');
@@ -148,6 +150,7 @@ export async function startViewer(): Promise<void> {
       return;
     }
     explorer.dataset.state = 'exploring';
+    pointerStill = true;
     svg?.classList.remove('drawing');
     if (camera) camera.leading = false;
     updateFreeArea({ animate: true });
@@ -530,6 +533,13 @@ export async function startViewer(): Promise<void> {
   let suppressClick = false;
   const markOf = (target: EventTarget | null) => (target instanceof Element ? target.closest<HTMLElement | SVGElement>('.mk[data-id], .vl-btn[data-id], .vl-btn[data-route]') : null);
   stage.addEventListener('pointerover', (ev) => {
+    if (view === 'network' || ev.pointerType === 'touch' || pointerStill) return;
+    const m = markOf(ev.target);
+    if (m instanceof SVGElement) drawings.setPointed(m.dataset.id ?? null);
+  });
+  stage.addEventListener('pointermove', (ev) => {
+    if (!pointerStill) return;
+    pointerStill = false;
     if (view === 'network' || ev.pointerType === 'touch') return;
     const m = markOf(ev.target);
     if (m instanceof SVGElement) drawings.setPointed(m.dataset.id ?? null);
