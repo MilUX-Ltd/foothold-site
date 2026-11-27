@@ -27,7 +27,7 @@ test('the fact strip is drawn from the data', async ({ page }) => {
   await expect(value('Defence pages')).toHaveText('8');
   await expect(value('Skills')).toHaveText('3');
   await expect(value('Folders')).toHaveText('4');
-  await expect(value('Job routes')).toHaveText('2');
+  await expect(value('Jobs')).toHaveText('2');
   await expect(value('Pack version')).toHaveText('0.0.0');
 });
 

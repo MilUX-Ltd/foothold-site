@@ -55,7 +55,7 @@ export function typeLabel(type: string, direction: 'outgoing' | 'incoming'): str
     listed_on: ['listed on', 'lists'],
     reads: ['reads', 'read by'],
     writes: ['writes to', 'written by'],
-    step: ['step', 'step in route'],
+    step: ['step', 'step in job'],
   };
   const pair = words[type];
   return pair ? pair[direction === 'outgoing' ? 0 : 1] : type.replace(/_/g, ' ');

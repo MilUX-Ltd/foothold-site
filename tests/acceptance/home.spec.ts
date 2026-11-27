@@ -32,7 +32,7 @@ test.describe('the home page', () => {
     await expect(page.locator('#map-drawing')).toBeVisible();
     const facts = page.locator('dl.facts');
     await expect(facts).toBeVisible();
-    for (const label of ['Defence pages', 'Skills', 'Folders', 'Job routes', 'Pack version']) await expect(facts).toContainText(label);
+    for (const label of ['Defence pages', 'Skills', 'Folders', 'Jobs', 'Pack version']) await expect(facts).toContainText(label);
     await expect(page.getByRole('button', { name: 'Explore the map', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Get the pack on GitHub' })).toHaveAttribute('href', 'https://github.com/MilUX-Ltd/foothold');
     await expect(explorer(page)).toHaveAttribute('data-state', 'landing');

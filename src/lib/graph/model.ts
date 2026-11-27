@@ -124,7 +124,7 @@ export function kindLabel(kind: string): string {
     'example-business': 'Example business',
     folder: 'Folders',
     skill: 'Skills',
-    route: 'Routes',
+    route: 'Jobs',
     vault: 'The vault',
   };
   return known[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1).replace(/-/g, ' ');
@@ -132,7 +132,7 @@ export function kindLabel(kind: string): string {
 
 /** A plain name for one node of a kind, lower case: "organisation", "event series". */
 export function kindName(kind: string): string {
-  const known: Record<string, string> = { 'example-business': 'example business', 'event-series': 'event series', vault: 'vault' };
+  const known: Record<string, string> = { 'example-business': 'example business', 'event-series': 'event series', vault: 'vault', route: 'job' };
   return known[kind] ?? kind.replace(/[-_]/g, ' ');
 }
 
