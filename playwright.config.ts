@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 // (FOOTHOLD_DATA_SOURCE=fixture), so they never depend on the network.
 export default defineConfig({
   testDir: 'tests',
-  testMatch: ['e2e/**/*.spec.ts'],
+  testMatch: ['e2e/**/*.spec.ts', 'acceptance/**/*.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

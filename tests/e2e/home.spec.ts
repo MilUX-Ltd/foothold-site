@@ -69,8 +69,9 @@ test('loads no script and breaks no content security rule', async ({ page }) => 
   expect(scripts).toEqual([]);
   expect(problems).toEqual([]);
   expect(await page.locator('script').count()).toBe(0);
+  // The policy allows this site's own script for the map page; the home page loads none.
   const csp = response?.headers()['content-security-policy'] ?? '';
-  expect(csp).toContain("script-src 'none'");
+  expect(csp).toContain("script-src 'self'");
 });
 
 test('makes requests to this site only', async ({ page, baseURL }) => {

@@ -1,10 +1,12 @@
 # Security headers baseline. Asserted by tests/unit/security-headers.test.ts
 # and checked after every deploy by scripts/check-deploy.mjs; change all together.
-# The page loads nothing from any other host and runs no script, so the policy
-# starts from nothing and allows this site only what the page needs: styles,
-# images and fonts from itself. Later cards widen it one directive at a time.
+# The site loads nothing from any other host, so the policy starts from nothing
+# and allows this site only what its pages need: styles, images and fonts from
+# itself, and, for the map page, its own bundled script and its own data file
+# (script-src and connect-src 'self'). No inline script or style, ever. Later
+# cards widen it one directive at a time.
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

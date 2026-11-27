@@ -7,8 +7,10 @@ interface Props {
   description: string;
   /** Whether the page has a canonical address (not the 404 page). */
   canonical?: boolean;
+  /** Whether the main column runs the full width of the window (the map page). */
+  wide?: boolean;
 }
-const { title, description, canonical = true } = Astro.props;
+const { title, description, canonical = true, wide = false } = Astro.props;
 // Canonical addresses are on foothold.milux.co.uk and end in a slash, as served.
 const path = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
 const canonicalUrl = new URL(path, 'https://foothold.milux.co.uk').toString();
@@ -30,7 +32,7 @@ const canonicalUrl = new URL(path, 'https://foothold.milux.co.uk').toString();
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <SiteHeader />
-    <main id="main">
+    <main id="main" class:list={[{ wide }]}>
       <slot />
     </main>
     <SiteFooter />
