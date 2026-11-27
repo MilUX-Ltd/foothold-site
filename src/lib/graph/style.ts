@@ -85,6 +85,22 @@ export function edgeStyle(type: string): EdgeStyle {
 /** The highlighted path: heavier than any edge type, in the accent. */
 export const PATH_STYLE: EdgeStyle = { colour: PALETTE.signal, width: 4, dash: [] };
 
+/**
+ * A job on the map. Each tier differs by size and outline or line weight as
+ * well as by tone, so none relies on colour alone:
+ * - strong (the skill and its folders): full size and over, with a heavy ring,
+ *   and its lines drawn heavier than usual in their own type's pattern;
+ * - soft (the defence pages behind the folders): full size, no ring;
+ * - faint (the job's other steps): smaller, with a thin dashed ring;
+ * - dimmed (everything else): smaller still and pale, with no label.
+ */
+export const ROUTE_STYLE = {
+  strong: { alpha: 1, scale: 1.2, ring: PALETTE.signal, ringWidth: 3, ringGap: 4, edgeExtra: 1.6, edgeAlpha: 1 },
+  soft: { alpha: 0.9, scale: 1, edgeAlpha: 0.45 },
+  faint: { alpha: 0.55, scale: 0.85, ring: PALETTE.ink3, ringWidth: 1.25, ringGap: 3, ringDash: [3, 3], edgeAlpha: 0.45 },
+  dim: { alpha: 0.14, scale: 0.7, edgeAlpha: 0.05 },
+} as const;
+
 /** A node's size in map units, from how many edges it has. */
 export function nodeRadius(degree: number): number {
   return 5 + Math.min(Math.sqrt(degree) * 2.4, 19);

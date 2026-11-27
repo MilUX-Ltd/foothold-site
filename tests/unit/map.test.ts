@@ -7,7 +7,7 @@ const map = loadMap(resolve(__dirname, '../fixtures/foothold-map.json'));
 describe('countByKind', () => {
   it('counts nodes by kind, with keys in a fixed order', () => {
     const counts = countByKind(map);
-    expect(counts).toMatchObject({ organisation: 2, programme: 1, framework: 1, portal: 1, 'event-series': 1, cluster: 1, folder: 3, skill: 3, route: 2 });
+    expect(counts).toMatchObject({ organisation: 2, programme: 1, framework: 1, portal: 1, 'event-series': 1, cluster: 1, 'example-business': 1, folder: 4, skill: 3, route: 2 });
     expect(Object.keys(counts)).toEqual([...Object.keys(counts)].sort());
     expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(map.nodes.length);
   });
@@ -15,7 +15,7 @@ describe('countByKind', () => {
 
 describe('facts', () => {
   it('draws the fact strip from the data', () => {
-    expect(facts(map)).toEqual({ defencePages: 7, skills: 3, folders: 3, routes: 2, packVersion: '0.0.0' });
+    expect(facts(map)).toEqual({ defencePages: 8, skills: 3, folders: 4, routes: 2, packVersion: '0.0.0' });
   });
 });
 

@@ -24,7 +24,8 @@
 - **Layout**: the position of every node on the map, settled at build time by a seeded force simulation (`src/lib/graph/layout.ts`) and shipped in `/map/graph.json`. The same map file gives the same positions on every build.
 - **Path**: the shortest chain of edges between two chosen nodes, following edges in either direction. Not to be confused with a node's `path` field (where the page sits in the pack) or a **route** (a job the pack defines).
 - **Connections**: a node's edges, grouped by type, with edges leaving the node kept apart from edges arriving at it.
-- **View state**: what the map page holds in its address so a view can be shared: `node` (the selected node's id), `from` and `to` (the ends of a path) and `view` (`2d`, the default, or `3d`). Ids the map does not hold are ignored.
+- **View state**: what the map page holds in its address so a view can be shared: `node` (the selected node's id), `from` and `to` (the ends of a path), `view` (`2d`, the default, or `3d`), and `route` and `step` (the job open on the map and the step shown, counting from 1). Ids the map does not hold are ignored; an unknown route is dropped with its step, a step outside the route's range is dropped and the route kept, and a job is dropped when the address holds both ends of a path.
+- **Job**: a route opened on the map from the Jobs panel or a "See it on the map" link. Shown whole, it lights the route, its skills and every folder they read or write. At a step, it lights that skill and its folders strongly, the defence pages filed in those folders softly, and the job's other steps faintly. A skill that reads the whole vault lights the vault mark and no folders for that read. When a step reads or writes the folder the example business is filed in, the example business is lit and named. Worked out in `src/lib/graph/routes.ts`.
 - **Connector**: a read-only service, planned for a later card, that lets a person's own AI tool look things up in the map. It returns structured fields from the map file and never skill files or instructions. See `docs/adr/0005-a-read-only-connector-with-no-model-behind-it.md`.
 - **Fixture**: a small hand-made map file in `tests/fixtures/` that tests and CI build from, so they never touch the network.
 
@@ -65,7 +66,7 @@ The site accepts major version 1 of `schema_version`. Minor and patch changes to
 
 ### What the map page reads
 
-The map page builds its list, legend and path choices from the checked file at build time. Its viewer fetches `/map/graph.json`, which the build writes from the same checked file: each node's `id`, `name`, `kind`, `layer` and position, and each edge's ends and `type`. No other field reaches the browser through it. Edge types the viewer has no style for are drawn with a plain dashed line and still listed.
+The map page builds its list, legend and path choices from the checked file at build time. Its viewer fetches `/map/graph.json`, which the build writes from the same checked file: each node's `id`, `name`, `kind`, `layer` and position, and each edge's ends and `type`. No other field reaches the browser through it. Edge types the viewer has no style for are drawn with a plain dashed line and still listed. The routes reach the browser in the page itself, not in that file: the Jobs panel carries each route's id, name and steps (skill id, skill name and the pack's sentence) in an inert `<template>`, built from the same checked file.
 
 ### What the site shows
 

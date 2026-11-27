@@ -1,6 +1,6 @@
 // The map's script: fetches the settled graph from this site, starts the
-// renderer, and joins the map, the list, the panels, the path controls and the
-// address together so each drives the others. It also moves the page from the
+// renderer, and joins the map, the list, the panels, the path controls, the
+// jobs and the address together so each drives the others. It also moves the page from the
 // landing state (the headline over the map) to the exploring state (the map
 // with its panels), and tells the renderer which part of the canvas the panels
 // leave free, so the drawing is never fitted underneath them.
@@ -11,6 +11,7 @@ import { freeArea, type Rect } from '../../lib/graph/fit';
 import { kindName, layerLabel, type Graph } from '../../lib/graph/model';
 import { shortestPath, type PathResult } from '../../lib/graph/path';
 import { readPayload } from '../../lib/graph/payload';
+import { routeLit, routeView, type RouteInput, type RouteStep, type RouteView } from '../../lib/graph/routes';
 import { DEFAULT_STATE, queryToState, stateToQuery, type MapState } from '../../lib/graph/url-state';
 import { MapRenderer } from './render';
 
@@ -28,6 +29,21 @@ function byId<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
   if (!node) throw new Error(`The map is missing #${id}`);
   return node as T;
+}
+
+/** The jobs as the page was built with them: each route's steps in the pack's order, read from an inert template. */
+function readRoutes(): RouteInput[] {
+  const template = document.getElementById('job-data');
+  if (!(template instanceof HTMLTemplateElement)) return [];
+  return [...template.content.querySelectorAll<HTMLElement>('ol[data-route]')].map((ol) => ({
+    id: ol.dataset.route ?? '',
+    name: ol.dataset.name ?? '',
+    steps: [...ol.querySelectorAll<HTMLElement>('li[data-skill]')].map((li) => ({
+      skill: li.dataset.skillName ?? '',
+      skillId: li.dataset.skill ?? '',
+      does: li.textContent?.trim() ?? '',
+    })),
+  }));
 }
 
 /** Whether an element takes up room on screen. */
@@ -92,12 +108,15 @@ export async function startViewer(): Promise<void> {
   // ---- panels that open and close ------------------------------------------
   const toggles = new Map<string, HTMLButtonElement>();
   for (const button of explorer.querySelectorAll<HTMLButtonElement>('button.panel-toggle[data-panel]')) toggles.set(button.dataset.panel!, button);
+  /** What to do when a panel closes, by panel id; the jobs panel closes the job. */
+  const onClose = new Map<string, () => void>();
   function setPanel(id: string, open: boolean, options: { focus?: 'toggle' } = {}) {
     const panel = byId<HTMLElement>(id);
     const toggle = toggles.get(id);
     if (panel.hidden === !open && toggle?.getAttribute('aria-expanded') === String(open)) return;
     panel.hidden = !open;
     toggle?.setAttribute('aria-expanded', String(open));
+    if (!open) onClose.get(id)?.();
     updateFreeArea({ animate: true });
     if (options.focus === 'toggle') toggle?.focus();
   }
@@ -263,6 +282,8 @@ export async function startViewer(): Promise<void> {
   // ---- path -------------------------------------------------------------
   function showPath(from: string | null, to: string | null, options: { announce?: boolean } = {}) {
     const { announce = true } = options;
+    // Asking for a path closes the job.
+    if (from && to && state.route) setPanel('jobs', false);
     pathResult.replaceChildren();
     state = { ...state, from, to };
     if (!from || !to) {
@@ -472,9 +493,166 @@ export async function startViewer(): Promise<void> {
   });
   for (const node of [canvas, lead, list, tools, stack]) if (node) resized.observe(node);
 
+  // ---- jobs: a route from the pack, whole or one step at a time -------------
+  // What a job lights, and what the panel lists for each step, comes from
+  // src/lib/graph/routes.ts. Here the panel is filled in and kept in step with
+  // the map and the address.
+  const views = new Map<string, RouteView>();
+  for (const input of readRoutes()) {
+    if (input.id && input.steps.length && input.steps.every((s) => graph.byId.has(s.skillId))) views.set(input.id, routeView(graph, input));
+  }
+  const jobsPanel = byId<HTMLElement>('jobs');
+  const jobsHeading = byId<HTMLElement>('jobs-heading');
+  const jobsChoose = byId<HTMLElement>('jobs-choose');
+  const jobView = byId<HTMLElement>('job-view');
+  const jobName = byId<HTMLElement>('job-name');
+  const jobCount = byId<HTMLElement>('job-count');
+  const jobSteps = byId<HTMLOListElement>('job-steps');
+  const jobStep = byId<HTMLElement>('job-step');
+  const jobPrev = byId<HTMLButtonElement>('job-prev');
+  const jobNext = byId<HTMLButtonElement>('job-next');
+  const jobWhole = byId<HTMLButtonElement>('job-whole');
+  const jobClose = byId<HTMLButtonElement>('job-close');
+  const jobButtons = new Map<string, HTMLButtonElement>();
+  for (const button of jobsPanel.querySelectorAll<HTMLButtonElement>('.job-list button[data-route]')) jobButtons.set(button.dataset.route!, button);
+  let shownRoute: string | null = null;
+
+  const plural = (n: number, one: string, many: string) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
+  // Folders are named by where they sit in the pack, which says more than their last part.
+  const placeName = (id: string) => (graph.byId.get(id)?.kind === 'vault' ? 'the whole vault' : id);
+
+  function stepDetail(view: RouteView, step: RouteStep) {
+    jobStep.replaceChildren();
+    const title = el('h4', { className: 'job-step-title' });
+    title.id = 'job-step-heading';
+    title.tabIndex = -1;
+    const skill = el('button', { className: 'link-button', text: step.skill });
+    skill.type = 'button';
+    skill.dataset.id = step.skillId;
+    skill.addEventListener('click', () => {
+      select(step.skillId);
+      document.getElementById('selected-name')?.focus();
+    });
+    title.append(skill);
+    jobStep.append(title, el('p', { className: 'job-does', text: step.does }));
+    const lines = el('ul', { className: 'job-lines' });
+    const line = (label: string, value: string) => lines.append(el('li', {}, el('span', { className: 'job-line-label', text: label }), document.createTextNode(` ${value}`)));
+    // The whole vault first, then any folders, in the pack's own folder names.
+    const reads = [...step.reads].sort((a, b) => Number(b.kind === 'vault') - Number(a.kind === 'vault'));
+    if (reads.length) line('Reads:', reads.map((n) => placeName(n.id)).join(', '));
+    if (step.writes.length) line('Writes:', step.writes.map((n) => placeName(n.id)).join(', '));
+    if (step.defencePages.length) lines.append(el('li', { text: `Draws on ${plural(step.defencePages.length, 'defence page', 'defence pages')}` }));
+    if (lines.childElementCount) jobStep.append(lines);
+    if (step.exampleBusiness) jobStep.append(el('p', { className: 'job-example', text: `${step.exampleBusiness.name}, the example business, is filed here.` }));
+    jobStep.dataset.route = view.id;
+  }
+
+  function showJob(routeId: string | null, step: number | null, options: { announce?: boolean; focus?: 'name' | 'step' | 'list' | 'keep'; move?: boolean } = {}) {
+    const { announce = true, focus = 'keep', move = true } = options;
+    const view = routeId ? views.get(routeId) : undefined;
+    if (!view) {
+      const was = state.route ?? null;
+      const rest: MapState = { node: state.node, from: state.from, to: state.to, view: state.view };
+      state = rest;
+      shownRoute = null;
+      jobView.hidden = true;
+      jobsChoose.hidden = false;
+      r.setHighlight({ route: null });
+      writeAddress();
+      updateFreeArea();
+      if (focus === 'list' && was) jobButtons.get(was)?.focus();
+      if (announce && was) say('Job closed. The map shows every page again.');
+      return;
+    }
+    enterExploring();
+    if (state.from || state.to) {
+      pathFrom.value = '';
+      pathTo.value = '';
+      showPath(null, null, { announce: false });
+    }
+    const total = view.steps.length;
+    const current = step !== null && step >= 1 && step <= total ? view.steps[step - 1] : null;
+    state = { ...state, route: view.id, step: current ? current.number : null };
+    setPanel('jobs', true);
+    jobsChoose.hidden = true;
+    jobView.hidden = false;
+    if (shownRoute !== view.id) {
+      shownRoute = view.id;
+      jobName.textContent = view.name;
+      jobSteps.replaceChildren();
+      for (const s of view.steps) {
+        const button = el('button', { className: 'job-step-button', text: s.skill });
+        button.type = 'button';
+        button.dataset.step = String(s.number);
+        button.addEventListener('click', () => showJob(view.id, s.number, { focus: 'step' }));
+        jobSteps.append(el('li', {}, button));
+      }
+    }
+    for (const button of jobSteps.querySelectorAll<HTMLButtonElement>('button[data-step]')) {
+      if (current && button.dataset.step === String(current.number)) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    }
+    jobCount.textContent = current ? `Step ${current.number} of ${total}` : plural(total, 'step', 'steps');
+    jobStep.hidden = !current;
+    if (current) stepDetail(view, current);
+    else jobStep.replaceChildren();
+    jobPrev.setAttribute('aria-disabled', String(!current || current.number === 1));
+    jobNext.setAttribute('aria-disabled', String(current !== null && current.number === total));
+    jobWhole.setAttribute('aria-disabled', String(!current));
+    const lit = routeLit(graph, view, current ? current.number : null);
+    r.setHighlight({ route: lit });
+    writeAddress();
+    // Fit to what is lit once the panel has its new size, so nothing lit sits under it.
+    updateFreeArea();
+    if (move) r.focusOnAll([...lit.strong, ...lit.soft]);
+    if (focus === 'name') jobName.focus();
+    else if (focus === 'step') (document.getElementById('job-step-heading') ?? jobName).focus();
+    if (announce) {
+      if (current) say(`Step ${current.number} of ${total}: ${current.skill}. ${current.does}`);
+      else say(`${view.name}, the whole job: ${plural(total, 'step', 'steps')}, lit on the map.`);
+    }
+  }
+
+  const stepNow = () => state.step ?? null;
+  const goNext = () => {
+    const view = state.route ? views.get(state.route) : undefined;
+    if (!view) return;
+    const k = stepNow();
+    if (k === view.steps.length) return;
+    showJob(view.id, k === null ? 1 : k + 1);
+  };
+  const goPrevious = () => {
+    const k = stepNow();
+    if (!state.route || k === null || k <= 1) return;
+    showJob(state.route, k - 1);
+  };
+  for (const [id, button] of jobButtons) button.addEventListener('click', () => showJob(id, null, { focus: 'name' }));
+  jobNext.addEventListener('click', goNext);
+  jobPrev.addEventListener('click', goPrevious);
+  jobWhole.addEventListener('click', () => {
+    if (state.route && stepNow() !== null) showJob(state.route, null, { focus: 'name' });
+  });
+  jobClose.addEventListener('click', () => showJob(null, null, { focus: 'list' }));
+  onClose.set('jobs', () => showJob(null, null));
+  toggles.get('jobs')?.addEventListener('click', () => {
+    if (!jobsPanel.hidden) jobsHeading.focus();
+  });
+  // With focus in the panel, the left and right arrow keys move through the steps.
+  jobsPanel.addEventListener('keydown', (ev) => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || jobView.hidden) return;
+    if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLSelectElement || ev.target instanceof HTMLTextAreaElement) return;
+    if (ev.key === 'ArrowRight') {
+      ev.preventDefault();
+      goNext();
+    } else if (ev.key === 'ArrowLeft') {
+      ev.preventDefault();
+      goPrevious();
+    }
+  });
+
   // ---- restore from the address -----------------------------------------
-  const restored = queryToState(window.location.search, (id) => graph.byId.has(id));
-  if (restored.node || restored.from || restored.to) enterExploring();
+  const restored = queryToState(window.location.search, (id) => graph.byId.has(id), (id) => views.get(id)?.steps.length ?? null);
+  if (restored.node || restored.from || restored.to || restored.route) enterExploring();
   if (restored.view === '3d') setMode('3d');
   if (restored.from) pathFrom.value = restored.from;
   if (restored.to) pathTo.value = restored.to;
@@ -482,6 +660,7 @@ export async function startViewer(): Promise<void> {
   select(restored.node, { announce: false });
   if (restored.from && restored.to) showPath(restored.from, restored.to, { announce: false });
   else state = { ...state, from: restored.from, to: restored.to };
+  if (restored.route) showJob(restored.route, restored.step ?? null, { announce: false });
   writeAddress();
 
   r.draw();

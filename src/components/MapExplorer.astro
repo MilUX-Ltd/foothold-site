@@ -9,7 +9,7 @@
 // read. Controls that only work with script are hidden when script is off
 // (see explorer.css), and panels that open and close start closed.
 import '../styles/explorer.css';
-import { facts, loadMap } from '../lib/map';
+import { facts, listRoutes, loadMap } from '../lib/map';
 import { buildGraph, groupByKind, kindLabel, layerLabel } from '../lib/graph/model';
 import { edgeStyle, kindStyle, PALETTE, PATH_STYLE } from '../lib/graph/style';
 import { typeLabel } from '../lib/graph/connections';
@@ -24,6 +24,7 @@ const { landing = false } = Astro.props;
 const map = loadMap();
 const graph = buildGraph(map);
 const groups = groupByKind(graph);
+const routes = listRoutes(map);
 const summary = facts(map);
 const strip = [
   { label: 'Defence pages', value: summary.defencePages.toLocaleString('en-GB') },
@@ -47,6 +48,7 @@ const mark = (kind: string, layer: 'defence' | 'business') => {
 };
 const dash = (d: number[]) => (d.length ? d.join(' ') : undefined);
 const tools = [
+  { id: 'jobs', label: 'Jobs', panel: 'jobs' },
   { id: 'key', label: 'Key', panel: 'map-key' },
   { id: 'path', label: 'Find a path', panel: 'path' },
   { id: 'help', label: 'How to use the map', panel: 'map-howto' },
@@ -106,6 +108,44 @@ const tools = [
     </div>
 
     <div class="map-stack">
+      <section class="panel jobs" id="jobs" aria-labelledby="jobs-heading" hidden>
+        <div class="panel-head">
+          <h2 id="jobs-heading" tabindex="-1">Jobs the pack already knows how to do</h2>
+          <button type="button" class="panel-close" data-close="jobs" aria-label="Close Jobs"><span aria-hidden="true">×</span></button>
+        </div>
+        <div class="panel-body" id="jobs-body">
+          <div id="jobs-choose">
+            <p class="map-note">Pick a job to see which skills do it and what they read and write.</p>
+            <ul class="job-list">
+              {routes.map((route) => (
+                <li><button type="button" class="job-button" data-route={route.id}>{route.name}</button></li>
+              ))}
+            </ul>
+          </div>
+          <div id="job-view" class="job-view" hidden>
+            <h3 id="job-name" class="job-name" tabindex="-1"></h3>
+            <p id="job-count" class="mono job-count"></p>
+            <ol id="job-steps" class="job-steps"></ol>
+            <div id="job-step" class="job-step-detail" hidden></div>
+            <div class="job-actions">
+              <button type="button" class="map-btn" id="job-prev">Previous step</button>
+              <button type="button" class="map-btn map-btn-primary" id="job-next">Next step</button>
+              <button type="button" class="map-btn" id="job-whole">Show the whole job</button>
+              <button type="button" class="map-btn" id="job-close">Close the job</button>
+            </div>
+          </div>
+          {/* Each job's steps in the pack's order, for the map's script to read. A
+              template is never shown and runs nothing. */}
+          <template id="job-data">
+            {routes.map((route) => (
+              <ol data-route={route.id} data-name={route.name}>
+                {route.steps.map((step) => <li data-skill={step.skillId} data-skill-name={step.skill}>{step.does}</li>)}
+              </ol>
+            ))}
+          </template>
+        </div>
+      </section>
+
       <section class="panel" id="selection" aria-labelledby="selection-heading" hidden>
         <div class="panel-head">
           <h2 id="selection-heading">Selected page</h2>

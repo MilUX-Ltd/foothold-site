@@ -24,9 +24,9 @@ test('the fact strip is drawn from the data', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('dl.facts')).toContainText('Defence pages');
   const value = (label: string) => page.locator('dl.facts div', { hasText: label }).locator('dd');
-  await expect(value('Defence pages')).toHaveText('7');
+  await expect(value('Defence pages')).toHaveText('8');
   await expect(value('Skills')).toHaveText('3');
-  await expect(value('Folders')).toHaveText('3');
+  await expect(value('Folders')).toHaveText('4');
   await expect(value('Job routes')).toHaveText('2');
   await expect(value('Pack version')).toHaveText('0.0.0');
 });

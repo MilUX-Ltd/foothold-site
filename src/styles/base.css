@@ -141,6 +141,8 @@ input::placeholder { color: #747b73; font-weight: 400; }
 .route-step::before { content: counter(step, decimal-leading-zero); font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; letter-spacing: 0.1em; color: var(--clay); }
 .route-skill { display: block; margin-bottom: 2px; font-family: var(--font-mono); font-weight: 500; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
 .route-does { margin: 0; color: var(--ink-2); }
+.route-more { margin: 0; padding: 12px 18px 14px; border-top: 1px solid var(--line); }
+.route-more a { display: inline-block; padding: 4px 0; font-weight: 700; color: var(--ink); }
 @media (min-width: 62rem) {
   .routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

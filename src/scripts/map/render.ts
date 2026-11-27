@@ -1,7 +1,8 @@
 // Draws the map on a canvas: the camera, the projection for the flat and 3D
 // views, hit-testing and painting. It knows nothing about the page around it;
-// viewer.ts tells it what is selected and on the path, which part of the canvas
-// is free of panels, and when to draw.
+// viewer.ts tells it what is selected, on the path or lit by a job, which part
+// of the canvas is free of panels, and when to draw. What a job lights is
+// worked out by src/lib/graph/routes.ts; the renderer only draws the tiers.
 //
 // It draws on demand, never in a loop: a frame is asked for when something
 // changes, and a camera move is animated only when the visitor has not asked
@@ -15,7 +16,10 @@ import type { ViewMode } from '../../lib/graph/url-state';
 import { edgesToDraw, isQuietType } from '../../lib/graph/edge-filter';
 import { fitToRect, type Circle, type Rect } from '../../lib/graph/fit';
 import { placeLabels, type Box, type LabelRequest } from '../../lib/graph/labels';
-import { edgeStyle, FONT, kindStyle, LABEL_STYLE, LAYER_TITLE_STYLE, nodeRadius, PALETTE, PATH_STYLE, screenRadius, type Shape } from '../../lib/graph/style';
+import type { RouteLit } from '../../lib/graph/routes';
+import { edgeStyle, FONT, kindStyle, LABEL_STYLE, LAYER_TITLE_STYLE, nodeRadius, PALETTE, PATH_STYLE, ROUTE_STYLE, screenRadius, type Shape } from '../../lib/graph/style';
+
+type Tier = 'strong' | 'soft' | 'faint' | 'dim';
 
 interface Point {
   node: GraphNode;
@@ -41,6 +45,8 @@ export interface Highlight {
   pathEdges: GraphEdge[];
   /** Draw every "mentions" and "filed in" edge, not only those of the selected and pointed-at pages. */
   showAll: boolean;
+  /** The job open on the map, whole or at a step; null for the ordinary map. */
+  route: RouteLit | null;
 }
 
 interface Region {
@@ -83,7 +89,7 @@ export class MapRenderer {
   private yaw = 0.5;
   private pitch = -0.45;
   private mode: ViewMode = '2d';
-  private highlight: Highlight = { selected: null, hovered: null, path: [], pathEdges: [], showAll: false };
+  private highlight: Highlight = { selected: null, hovered: null, path: [], pathEdges: [], showAll: false, route: null };
   private frameRequested = false;
   private flight: number | null = null;
   private frames = 0;
@@ -297,6 +303,9 @@ export class MapRenderer {
     data.drawMs = ms.toFixed(1);
     data.edgesDrawn = String(drawn);
     data.zoom = this.view.k.toFixed(3);
+    // How many nodes a job lights, strongly and softly; empty on the ordinary map.
+    const route = this.activeRoute();
+    data.lit = route ? String(route.strong.size + route.soft.size) : '';
     // The flat view's transform from map units to canvas pixels, for anything
     // outside that needs to know where a node is drawn.
     if (this.mode === '2d') {
@@ -445,6 +454,18 @@ export class MapRenderer {
     }
   }
 
+  /** The job to draw, unless a path is shown, which takes its place. */
+  private activeRoute(): RouteLit | null {
+    return this.highlight.pathEdges.length > 0 ? null : this.highlight.route;
+  }
+
+  private tierOf(route: RouteLit, id: string): Tier {
+    if (route.strong.has(id)) return 'strong';
+    if (route.soft.has(id)) return 'soft';
+    if (route.faint.has(id)) return 'faint';
+    return 'dim';
+  }
+
   private focusSet(): Set<string> | null {
     const { selected } = this.highlight;
     if (!selected) return null;
@@ -466,6 +487,8 @@ export class MapRenderer {
     const shownSet = new Set(shown);
     let count = 0;
     ctx.lineCap = 'butt';
+    const route = this.activeRoute();
+    if (route) return this.drawRouteEdges(route, shownSet);
     for (const { edge, a, b } of this.edges) {
       if (onPath.has(edge) || !shownSet.has(edge)) continue;
       const near = (selected !== null && (edge.from === selected || edge.to === selected)) || (hovered !== null && (edge.from === hovered || edge.to === hovered));
@@ -505,26 +528,77 @@ export class MapRenderer {
     return count;
   }
 
+  /**
+   * The edges with a job open: the rest of the map pale underneath, then the
+   * job's other steps and the filing of the defence pages, then the lit step on
+   * top in its own line patterns, heavier than usual.
+   */
+  private drawRouteEdges(route: RouteLit, shown: Set<GraphEdge>): number {
+    const { ctx } = this;
+    const { selected, hovered } = this.highlight;
+    const tiers = new Map<GraphEdge, Tier>();
+    for (const e of route.faintEdges) tiers.set(e, 'faint');
+    for (const e of route.softEdges) tiers.set(e, 'soft');
+    for (const e of route.strongEdges) tiers.set(e, 'strong');
+    let count = 0;
+    for (const pass of ['dim', 'faint', 'soft', 'strong'] as const) {
+      for (const { edge, a, b } of this.edges) {
+        const tier = tiers.get(edge) ?? 'dim';
+        if (tier !== pass) continue;
+        const near = (selected !== null && (edge.from === selected || edge.to === selected)) || (hovered !== null && (edge.from === hovered || edge.to === hovered));
+        if (tier === 'dim' && !shown.has(edge)) continue;
+        const style = edgeStyle(edge.type);
+        const look = ROUTE_STYLE[tier];
+        ctx.globalAlpha = tier === 'dim' && near ? 0.8 : look.edgeAlpha;
+        ctx.strokeStyle = style.colour;
+        ctx.lineWidth = tier === 'strong' ? style.width + ROUTE_STYLE.strong.edgeExtra : near ? style.width + 0.6 : style.width;
+        ctx.setLineDash(style.dash);
+        ctx.beginPath();
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
+        ctx.stroke();
+        count++;
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+    return count;
+  }
+
   private drawNodes(): void {
     const { ctx } = this;
     const { selected, hovered, path } = this.highlight;
     const focus = this.focusSet();
     const onPath = new Set(path);
-    const order = this.mode === '3d' ? [...this.points].sort((a, b) => b.depth - a.depth || a.index - b.index) : this.points;
+    const route = this.activeRoute();
+    const order = this.mode === '3d' ? [...this.points].sort((a, b) => b.depth - a.depth || a.index - b.index) : [...this.points];
+    // With a job open the dimmed marks go first, so every lit mark is drawn over them.
+    if (route && this.mode === '2d') {
+      const rank: Record<Tier, number> = { dim: 0, faint: 1, soft: 2, strong: 3 };
+      order.sort((a, b) => rank[this.tierOf(route, a.node.id)] - rank[this.tierOf(route, b.node.id)] || a.index - b.index);
+    }
     const strong: LabelRequest[] = [];
     const ordinary: LabelRequest[] = [];
     const marks: Box[] = [];
+    /** With a job open, the lit marks the job's own labels keep clear of. */
+    const litMarks: Box[] = [];
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const p of order) {
-      const r = p.sr;
       if (p.sx < -40 || p.sx > this.width + 40 || p.sy < -40 || p.sy > this.height + 40) continue;
-      minX = Math.min(minX, p.sx - r * 1.2);
-      minY = Math.min(minY, p.sy - r * 1.2);
-      maxX = Math.max(maxX, p.sx + r * 1.2);
-      maxY = Math.max(maxY, p.sy + r * 1.2);
+      minX = Math.min(minX, p.sx - p.sr * 1.2);
+      minY = Math.min(minY, p.sy - p.sr * 1.2);
+      maxX = Math.max(maxX, p.sx + p.sr * 1.2);
+      maxY = Math.max(maxY, p.sy + p.sr * 1.2);
+      const isSelected = p.node.id === selected;
+      const isHovered = p.node.id === hovered;
+      if (route) {
+        this.drawRouteNode(p, route, { isSelected, isHovered, focus }, { strong, ordinary, marks, litMarks });
+        continue;
+      }
+      const r = p.sr;
       const dim = (onPath.size > 0 && !onPath.has(p.node.id)) || (onPath.size === 0 && focus !== null && !focus.has(p.node.id));
       ctx.globalAlpha = dim ? 0.18 : 1;
       const { colour, shape } = kindStyle(p.node.kind, p.node.layer);
@@ -535,8 +609,6 @@ export class MapRenderer {
       ctx.lineWidth = defence ? 1 : Math.max(1.5, Math.min(2.5, r * 0.35));
       ctx.strokeStyle = defence ? PALETTE.white : colour;
       ctx.stroke();
-      const isSelected = p.node.id === selected;
-      const isHovered = p.node.id === hovered;
       if (isSelected || isHovered || onPath.has(p.node.id)) {
         ctx.globalAlpha = 1;
         this.shape(shape, p.sx, p.sy, r + 4);
@@ -564,13 +636,91 @@ export class MapRenderer {
     const f = this.free;
     const bounds: Box = [Math.max(2, f.left), Math.max(2, f.top), Math.min(this.width - 2, f.left + f.width), Math.min(this.height - 2, f.top + f.height)];
     const titles = this.mode === '2d' ? this.titleBoxes : [];
-    const placedStrong = placeLabels(strong, { bounds });
+    let placedStrong = placeLabels(strong, { bounds, obstacles: litMarks });
+    if (route) {
+      // A lit label that finds no place clear of the lit marks is still shown, clear of the other labels.
+      const placedIds = new Set(placedStrong.map((l) => l.id));
+      const rest = strong.filter((req) => !placedIds.has(req.id));
+      if (rest.length) placedStrong = [...placedStrong, ...placeLabels(rest, { bounds, obstacles: placedStrong.map((l) => l.box) })];
+    }
     const placed = placeLabels(ordinary, { bounds, obstacles: [...marks, ...titles, ...placedStrong.map((l) => l.box)] });
     this.drawLabels(placedStrong, true);
     this.drawLabels(placed, false);
   }
 
+  /**
+   * One mark with a job open. Its tier sets its size, ring and tone; the lit
+   * marks are named first, the others only where there is room, the dimmed
+   * never. A page chosen while the job is open is drawn as chosen.
+   */
+  private drawRouteNode(
+    p: Point,
+    route: RouteLit,
+    { isSelected, isHovered, focus }: { isSelected: boolean; isHovered: boolean; focus: Set<string> | null },
+    out: { strong: LabelRequest[]; ordinary: LabelRequest[]; marks: Box[]; litMarks: Box[] },
+  ): void {
+    const { ctx } = this;
+    let tier = this.tierOf(route, p.node.id);
+    // The chosen page and its neighbours are not dimmed, so a choice made while the job is open can be seen.
+    if (tier === 'dim' && (isSelected || isHovered || (focus !== null && focus.has(p.node.id)))) tier = 'faint';
+    const look = ROUTE_STYLE[tier];
+    const r = p.sr * look.scale;
+    const { colour, shape } = kindStyle(p.node.kind, p.node.layer);
+    const defence = p.node.layer === 'defence';
+    ctx.globalAlpha = look.alpha;
+    this.shape(shape, p.sx, p.sy, r);
+    ctx.fillStyle = defence ? colour : PALETTE.white;
+    ctx.fill();
+    ctx.lineWidth = defence ? 1 : Math.max(1.5, Math.min(2.5, r * 0.35));
+    ctx.strokeStyle = defence ? PALETTE.white : colour;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (tier === 'strong') {
+      const s = ROUTE_STYLE.strong;
+      this.shape(shape, p.sx, p.sy, r + s.ringGap);
+      ctx.lineWidth = s.ringWidth;
+      ctx.strokeStyle = s.ring;
+      ctx.stroke();
+    } else if (tier === 'faint') {
+      const f = ROUTE_STYLE.faint;
+      ctx.globalAlpha = 0.9;
+      this.shape(shape, p.sx, p.sy, r + f.ringGap);
+      ctx.lineWidth = f.ringWidth;
+      ctx.strokeStyle = f.ring;
+      ctx.setLineDash([...f.ringDash]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+    if (isSelected || isHovered) {
+      this.shape(shape, p.sx, p.sy, r + (tier === 'strong' ? ROUTE_STYLE.strong.ringGap + 4 : 4));
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.strokeStyle = PALETTE.ink;
+      ctx.stroke();
+    }
+    if (tier === 'dim') return;
+    const ring = tier === 'strong' ? ROUTE_STYLE.strong.ringGap + ROUTE_STYLE.strong.ringWidth : 0;
+    const box: Box = [p.sx - r - ring, p.sy - r - ring, p.sx + r + ring, p.sy + r + ring];
+    if (r >= 4.5) out.marks.push(box);
+    if (tier === 'strong' || tier === 'faint') out.litMarks.push(box);
+    if (tier === 'strong' || isSelected || isHovered) {
+      let priority = 1e6 + p.degree;
+      if (route.labels.has(p.node.id)) priority += 5e5;
+      if (isHovered) priority += 1e6;
+      if (isSelected) priority += 2e6;
+      out.strong.push(this.labelRequest(p, priority, true, r + ring));
+    } else if (tier === 'faint' || r >= LABEL_STYLE.minRadius) {
+      // The job's other steps are few and always offered a label; the defence
+      // pages behind a step can be hundreds, so only the larger are, as on the
+      // ordinary map. Faint before soft, larger before smaller.
+      out.ordinary.push(this.labelRequest(p, (tier === 'faint' ? 1e5 : 0) + p.radius * 1000 + p.degree, false, r));
+    }
+  }
+
   private labelText(p: Point): string {
+    // A label the job gives (the example business) is shown whole.
+    const given = this.activeRoute()?.labels.get(p.node.id);
+    if (given) return given;
     const name = p.node.name;
     return name.length > LABEL_STYLE.maxChars ? `${name.slice(0, LABEL_STYLE.maxChars - 1).trimEnd()}…` : name;
   }
@@ -579,16 +729,17 @@ export class MapRenderer {
     return strong ? `${LABEL_STYLE.strongWeight} ${LABEL_STYLE.strongSize}px ${FONT}` : `${LABEL_STYLE.weight} ${LABEL_STYLE.size}px ${FONT}`;
   }
 
-  private labelRequest(p: Point, priority: number, strong: boolean): LabelRequest {
-    const key = `${strong ? 's' : 'o'}${p.node.id}`;
+  private labelRequest(p: Point, priority: number, strong: boolean, radius?: number): LabelRequest {
+    const text = this.labelText(p);
+    const key = `${strong ? 's' : 'o'}${p.node.id}\u0000${text}`;
     let width = this.labelWidths.get(key);
     if (width === undefined) {
       this.ctx.font = this.labelFont(strong);
-      width = this.ctx.measureText(this.labelText(p)).width;
+      width = this.ctx.measureText(text).width;
       this.labelWidths.set(key, width);
     }
     const size = strong ? LABEL_STYLE.strongSize : LABEL_STYLE.size;
-    return { id: p.node.id, x: p.sx, y: p.sy, r: p.sr + (strong ? 4 : 0), width: width + LABEL_STYLE.haloWidth, height: size + 4, priority };
+    return { id: p.node.id, x: p.sx, y: p.sy, r: radius ?? p.sr + (strong ? 4 : 0), width: width + LABEL_STYLE.haloWidth, height: size + 4, priority };
   }
 
   private drawLabels(labels: ReturnType<typeof placeLabels>, strong: boolean): void {
