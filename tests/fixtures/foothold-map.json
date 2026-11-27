@@ -13,6 +13,12 @@
    "type": "in_folder"
   },
   {
+   "from": "Context/Example Defence Business",
+   "origin": "path",
+   "to": "Context",
+   "type": "in_folder"
+  },
+  {
    "from": "Customer Engagements",
    "origin": "folder",
    "to": "Operations",
@@ -93,6 +99,12 @@
   {
    "from": "Skills/business-skills/bid-response",
    "origin": "skill",
+   "to": "Context",
+   "type": "reads"
+  },
+  {
+   "from": "Skills/business-skills/bid-response",
+   "origin": "skill",
    "to": "Customer Engagements",
    "type": "writes"
   },
@@ -167,6 +179,22 @@
    "path": "CRM/organisations/mod/Ministry of Defence.md",
    "status": "active",
    "website": "https://www.gov.uk/government/organisations/ministry-of-defence"
+  },
+  {
+   "guide": "Context/Context Guide.md",
+   "id": "Context",
+   "kind": "folder",
+   "layer": "business",
+   "name": "Context",
+   "path": "Context"
+  },
+  {
+   "id": "Context/Example Defence Business",
+   "kind": "example-business",
+   "layer": "defence",
+   "name": "Example Defence Business",
+   "path": "Context/Example Defence Business.md",
+   "status": "active"
   },
   {
    "guide": "Customer Engagements/Customer Engagements Guide.md",

@@ -45,17 +45,17 @@ export function connectionsOf(graph: Graph, id: string): Connections {
 /** Plain words for an edge type, read from the node whose connections are shown. */
 export function typeLabel(type: string, direction: 'outgoing' | 'incoming'): string {
   const words: Record<string, [string, string]> = {
-    parent: ['inside folder', 'holds folder'],
+    parent: ['part of', 'has part'],
     in_folder: ['filed in', 'holds page'],
     mentions: ['mentions', 'mentioned by'],
-    customer: ['customer', 'customer of'],
-    operator: ['operator', 'operates'],
-    service: ['service', 'service for'],
+    customer: ['the work is for', 'customer of'],
+    operator: ['run by', 'operates'],
+    service: ['belongs to this service', 'service for'],
     member_of: ['member of', 'has member'],
     listed_on: ['listed on', 'lists'],
     reads: ['reads', 'read by'],
     writes: ['writes to', 'written by'],
-    step: ['step', 'step in route'],
+    step: ['step', 'step in job'],
   };
   const pair = words[type];
   return pair ? pair[direction === 'outgoing' ? 0 : 1] : type.replace(/_/g, ' ');

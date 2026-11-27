@@ -1,5 +1,9 @@
 // Acceptance tests 7 to 15 for the map page, against the fixture build
 // (FOOTHOLD_DATA_SOURCE=fixture). Tests 1 to 6 are unit tests in tests/unit.
+//
+// Since the four views, the canvas these tests were written for is the
+// network view, under "More" (view=network); the page is ready when
+// #explorer says so, and tests of the canvas itself open that view.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,17 +19,24 @@ const FRAMEWORK = 'Intelligence/defence-landscape/Frameworks/Example Supplier Fr
 const CLUSTER = 'CRM/networks/Example Regional Defence Cluster';
 const VAULT = '.';
 
-/** Opens the map and waits until the viewer has drawn its first frame. */
+/** Opens the map and waits until the viewer is ready; for the network view, until the canvas has drawn its first frame. */
 async function openMap(page: Page, query = '') {
   await page.goto(`/map/${query}`);
-  await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
+  if (query.includes('view=network')) await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+}
+
+/** Opens the list of every page, which starts folded beside the drawing. */
+async function unfoldList(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Every page on the map', exact: true });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
 }
 
 const stateParam = (page: Page, key: string) => new URL(page.url()).searchParams.get(key);
 
 test.describe('the map page', () => {
   test('7. shows a canvas and a list holding every node in the fixture', async ({ page }) => {
-    await openMap(page);
+    await openMap(page, '?view=network');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     await expect(page.locator('#map-canvas')).toBeVisible();
     const list = page.getByRole('region', { name: 'Every page on the map' });
@@ -38,6 +49,7 @@ test.describe('the map page', () => {
 
   test('8. choosing a node in the list by keyboard alone selects it, lists its connections and puts it in the address', async ({ page }) => {
     await openMap(page);
+    await unfoldList(page);
     const search = page.getByRole('searchbox', { name: 'Find a page on the map' });
     await search.focus();
     await page.keyboard.type('Supplier');
@@ -50,9 +62,9 @@ test.describe('the map page', () => {
     const panel = page.getByRole('region', { name: 'Selected page' });
     await expect(panel.getByRole('heading', { name: 'Example Supplier Framework' })).toBeVisible();
     const outgoing = panel.locator('[data-direction="outgoing"]');
-    await expect(outgoing).toContainText('customer');
+    await expect(outgoing).toContainText('the work is for');
     await expect(outgoing).toContainText('Ministry of Defence');
-    await expect(outgoing).toContainText('operator');
+    await expect(outgoing).toContainText('run by');
     await expect(outgoing).toContainText('Defence Science and Technology Laboratory');
     await expect(panel.locator('[data-direction="incoming"]')).toContainText('Example Innovation Programme');
     await expect.poll(() => stateParam(page, 'node')).toBe(FRAMEWORK);
@@ -72,8 +84,10 @@ test.describe('the map page', () => {
 
   test('10. a path between two nodes is listed in text, and the page says when there is none', async ({ page }) => {
     await openMap(page);
+    // The path finder is a panel over the map that opens from the map's controls.
+    await page.getByRole('button', { name: 'Find a path', exact: true }).click();
     await page.getByLabel('From').selectOption(FRAMEWORK);
-    await page.getByLabel('To').selectOption(CLUSTER);
+    await page.getByLabel('To', { exact: true }).selectOption(CLUSTER);
     await page.getByRole('button', { name: 'Find the path' }).focus();
     await page.keyboard.press('Enter');
     const result = page.getByRole('region', { name: 'Path' });
@@ -82,7 +96,7 @@ test.describe('the map page', () => {
     await expect.poll(() => [stateParam(page, 'from'), stateParam(page, 'to')]).toEqual([FRAMEWORK, CLUSTER]);
     await expect(page.getByRole('status')).toContainText('3 steps');
 
-    await page.getByLabel('To').selectOption(VAULT);
+    await page.getByLabel('To', { exact: true }).selectOption(VAULT);
     await page.getByRole('button', { name: 'Find the path' }).click();
     await expect(result).toContainText('No path joins Example Supplier Framework and The whole vault');
     await expect(result.locator('ol > li')).toHaveCount(0);
@@ -109,9 +123,10 @@ test.describe('the map page', () => {
   test.describe('with reduced motion requested', () => {
     test.use({ reducedMotion: 'reduce' });
     test('12. nothing animates', async ({ page }) => {
-      await openMap(page);
+      await openMap(page, '?view=network');
       const canvas = page.locator('#map-canvas');
       await expect(canvas).toHaveAttribute('data-motion', 'reduced');
+      await unfoldList(page);
       const frames = async () => Number(await canvas.getAttribute('data-frames'));
       const before = await frames();
       await page.locator(`button[data-id="${FRAMEWORK}"]`).click();
@@ -145,7 +160,7 @@ test.describe('the map page', () => {
       });
     });
     const response = await page.goto(`/map/?node=${encodeURIComponent(FRAMEWORK)}`);
-    await expect(page.locator('#map-canvas')).toHaveAttribute('data-ready', 'true');
+    await expect(page.locator('#explorer')).toHaveAttribute('data-ready', 'true');
     await page.waitForLoadState('networkidle');
     expect(outside).toEqual([]);
     expect(problems).toEqual([]);
@@ -177,7 +192,7 @@ test.describe('the map page', () => {
     const payload = toPayload(graph, computeLayout(graph));
     await page.route('**/map/graph.json', (route) => route.fulfill({ json: payload }));
     const [a, b] = [graph.nodes[3].id, graph.nodes[400].id];
-    await openMap(page, `?node=${encodeURIComponent(a)}`);
+    await openMap(page, `?view=network&node=${encodeURIComponent(a)}`);
     const timeClick = (selector: string) =>
       page.evaluate(async (sel) => {
         const target = document.querySelector<HTMLElement>(sel);

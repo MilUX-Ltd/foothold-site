@@ -1,0 +1,578 @@
+/* The map (MapExplorer.astro), on the home page and /map/. Tokens and the
+   shared components come from base.css. The network canvas's colours live
+   in src/lib/graph/style.ts as literal values, because a canvas cannot read
+   these custom properties; the four drawn views are SVG and take theirs
+   from here.
+
+   Three layouts, built up in this order:
+   1. Without script, and as the base: an ordinary page. The headline, the
+      whole map as a drawing that scales to the page, and the list of every
+      page. Controls that need script are not shown.
+   2. With script, on a wide screen: the drawing fills the window under the
+      top bar. In the landing state the headline sits on the left over a fade
+      to paper; in the exploring state the headline goes, the view switcher
+      sits top left, the list below it, and the controls and panels lie over
+      the drawing on the right.
+   3. With script, at phone width: the headline first, the switcher as a row
+      that scrolls inside itself, the view, then the controls, the panels and
+      the list as ordinary sections.
+
+   No style attribute is ever written by script: every state is a class. */
+
+.explorer { --lead-w: min(540px, 42vw); --lead-right: calc(var(--gutter) + var(--lead-w)); --list-w: min(340px, 32vw); --switch-w: 526px; position: relative; }
+
+/* Headline */
+.lead { max-width: 46rem; padding: 40px var(--gutter) 8px; }
+.lead .kicker { flex-wrap: wrap; gap: 4px 10px; }
+.lead .kicker span { white-space: nowrap; }
+.lead .display { margin: 16px 0 18px; font-size: clamp(42px, 4.6vw, 68px); }
+.lead-purpose { margin: 0 0 26px; font-size: 18px; line-height: 1.5; color: var(--ink-2); max-width: 31em; }
+.lead-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 30px; }
+.lead .facts { margin: 0; padding-top: 20px; border-top: 1px solid var(--line); gap: 22px 28px; }
+.fade { display: none; }
+
+/* The view switcher: four views in one group, the network under More. */
+.view-switch { position: relative; z-index: 4; margin: 16px var(--gutter) 0; }
+.switch-row { display: flex; width: max-content; max-width: 100%; box-shadow: 4px 4px 0 var(--shadow); }
+.switch-btn { flex: none; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.2; min-height: 40px; padding: 0 15px; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; cursor: pointer; white-space: nowrap; }
+.switch-row .switch-btn + .switch-btn { margin-left: -1.5px; }
+.switch-btn:hover { background: var(--paper); box-shadow: inset 0 -3px 0 var(--signal); }
+.switch-btn:focus-visible { position: relative; z-index: 1; }
+.switch-btn[aria-pressed='true'] { color: var(--white); background: var(--forest); border-color: var(--forest); box-shadow: inset 0 -3px 0 var(--signal); }
+.switch-more { display: inline-flex; align-items: center; gap: 8px; }
+.switch-more::after { content: ''; width: 6px; height: 6px; border-right: 2px solid currentcolor; border-bottom: 2px solid currentcolor; transform: translateY(-2px) rotate(45deg); }
+.switch-more[aria-expanded='true']::after { transform: translateY(1px) rotate(-135deg); }
+.switch-more.is-current { box-shadow: inset 0 -3px 0 var(--signal); }
+.switch-menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: auto; right: 0; width: max-content; padding: 6px; background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
+.switch-menu .switch-btn { display: block; width: 100%; text-align: left; }
+
+/* The stage holds one view at a time. */
+.map-stage { position: relative; margin: 16px 0 0; background: var(--paper); }
+.view-pane { position: relative; }
+.map-canvas { display: block; width: 100%; height: 100%; background: #f5f4ef; cursor: grab; touch-action: none; }
+.map-canvas.is-pointing { cursor: pointer; }
+.map-canvas:focus-visible { outline-offset: -3px; }
+.pane-network { height: 40vh; min-height: 260px; margin: 0 var(--gutter); border: 1.5px solid var(--ink); }
+.map-waiting { position: absolute; inset: 0; margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--ink-2); font-weight: 600; }
+.with-script { display: none; }
+@media (scripting: enabled) {
+  .without-script { display: none; }
+  .with-script { display: inline; }
+}
+@media (scripting: none) {
+  .needs-script { display: none !important; }
+}
+
+/* The line that says a page is not in this view. */
+.view-note { position: relative; z-index: 3; margin: 0 var(--gutter) 12px; padding: 10px 14px; max-width: 34rem; font-size: 14.5px; font-weight: 600; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-left: 6px solid var(--clay); box-shadow: var(--shadow-card); }
+.view-note a { font-weight: 800; }
+
+/* ---- the drawn views: shared ----------------------------------------------------- */
+.vp-inner { position: relative; }
+.view-head { margin: 0 0 14px; }
+.view-head .kicker { margin: 0; }
+.view-title { margin: 10px 0 6px; font-size: clamp(28px, 3.2vw, 40px); font-weight: 800; letter-spacing: -0.035em; line-height: 1; color: var(--ink); }
+.view-sub { margin: 0; max-width: 46rem; font-size: 14.5px; color: var(--ink-2); }
+.view-key { display: flex; flex-wrap: wrap; gap: 6px 22px; list-style: none; margin: 0 0 12px; padding: 0; font-size: 13.5px; color: var(--ink-2); }
+.view-key li { display: inline-flex; align-items: center; gap: 8px; }
+.swatch, .swatch-tile { flex: none; overflow: visible; }
+.view-svg { display: block; overflow: visible; }
+.view-svg text { font-family: var(--font); }
+.view-list { display: none; }
+
+/* Marks: every page drawn. The hit area is invisible; the ring shows selection
+   and a lit job; the focus ring is the hit area's outline. */
+.mk { cursor: pointer; outline: none; }
+.mk .hit { fill: transparent; stroke: none; pointer-events: all; }
+.mk .ring { fill: none; stroke: none; pointer-events: none; }
+.mk:focus-visible .hit { stroke: var(--signal); stroke-width: 3px; }
+.mk.is-sel .ring { stroke: var(--ink); stroke-width: 2.4px; }
+.mk.r-strong .ring { stroke: var(--signal); stroke-width: 3px; }
+.mk.is-sel.r-strong .ring { stroke: var(--ink); }
+
+/* Kinds: one colour each, set as a custom property the shapes read. */
+.k-organisation { --c: var(--forest); }
+.k-programme { --c: var(--clay); }
+.k-framework { --c: var(--ink-2); }
+.k-portal { --c: #8a2b0a; }
+.k-event-series { --c: var(--signal); }
+.k-network { --c: var(--ink-3); }
+.k-cluster { --c: #3d6b2c; }
+.k-example-business { --c: var(--ink); }
+.k-folder { --c: var(--forest); }
+.k-skill { --c: var(--clay); }
+.k-route { --c: #8a2b0a; }
+.k-vault { --c: var(--ink); }
+
+/* Lines: pattern and weight say the kind as well as colour. Every colour
+   here is at least 3:1 against the paper. */
+.ln { fill: none; stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.ln.t-parent { stroke: #7c857d; }
+.ln.t-customer { stroke: #5c7a52; }
+.ln.t-operator { stroke: #4e5e51; stroke-dasharray: 5 3; }
+.ln.t-service { stroke: #a0672e; stroke-width: 1.7px; stroke-dasharray: 0.5 3.5; stroke-linecap: round; }
+.ln.t-reads { stroke: #b47a42; stroke-dasharray: 5 4; }
+.ln.t-writes { stroke: var(--clay); stroke-width: 1.9px; }
+.ln.t-step { stroke: #8a2b0a; stroke-width: 1.7px; }
+.ln.t-member_of, .ln.t-listed_on { stroke: #7c857d; stroke-dasharray: 2 3; }
+.path-line { fill: none; stroke: var(--signal); stroke-width: 4px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.band { fill: rgb(17 51 8 / 12%); stroke: #788a71; stroke-width: 0.8px; vector-effect: non-scaling-stroke; }
+
+/* Pointing at a page lights it and its named neighbours and quietens the rest. */
+.is-pointing .mk, .is-pointing .ln, .is-pointing .band { transition: opacity 0.12s ease; }
+.is-pointing .mk:not(.is-pt, .is-lit) { opacity: 0.2; }
+.is-pointing .ln:not(.is-lit), .is-pointing .band:not(.is-lit) { opacity: 0.1; }
+.ln.is-lit, .ln.is-near { stroke-width: 2.2px; }
+.band.is-lit, .band.is-near { fill: rgb(17 51 8 / 26%); stroke: var(--forest); }
+/* A job lights its parts and leaves the rest faint. */
+.has-route .mk:not(.r-strong, .r-soft, .r-faint, .is-pt, .is-lit) { opacity: 0.16; }
+.has-route .ln:not(.r-strong, .r-faint, .is-lit) { opacity: 0.08; }
+.has-route .band:not(.r-strong) { opacity: 0.25; }
+.mk.r-faint { opacity: 0.5; }
+.ln.r-strong { stroke-width: 2.6px; opacity: 1; }
+.ln.r-faint { opacity: 0.35; }
+.band.r-strong { fill: rgb(226 97 28 / 22%); stroke: var(--signal); }
+/* A selected page holds attention: its named neighbours and lines stay, the rest step back. */
+.has-sel .mk:not(.is-sel, .is-near, .is-pt, .is-lit, .r-strong, .r-soft, .on-path) { opacity: 0.4; }
+.has-sel .ln:not(.is-near, .is-lit, .r-strong, .on-path) { opacity: 0.25; }
+.ln.is-near { opacity: 1; }
+/* A path lights its pages and the lines it follows. */
+.has-path .mk:not(.on-path, .is-pt, .is-lit, .r-strong) { opacity: 0.3; }
+.ln.on-path { stroke: var(--signal); stroke-width: 3.5px; opacity: 1; }
+.mk.on-path .ring { stroke: var(--signal); stroke-width: 2.4px; }
+
+/* ---- the whole map -------------------------------------------------------------- */
+.mv { width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+.mv text { pointer-events: none; }
+.mv .s { transform: scale(var(--u, 1)); }
+.layer-title, .filed-title, .tt-head { font-family: var(--font-mono); font-weight: 500; font-size: min(max(10.5px, calc(7.6px * var(--u, 1))), calc(12px * var(--u, 1))); letter-spacing: 0.14em; fill: var(--ink-3); }
+.filed-title { fill: var(--forest); paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round; }
+.layer-rule { stroke: var(--signal); stroke-width: 2; }
+.guide { fill: none; stroke: #cfcec3; stroke-width: 1px; stroke-dasharray: 1 5; vector-effect: non-scaling-stroke; }
+.garc { fill: none; stroke: #8c948d; stroke-width: 1px; vector-effect: non-scaling-stroke; }
+
+.wheel-mk .sh { fill: var(--c); stroke: var(--paper); stroke-width: 1px; }
+.wheel-mk.q .sh { fill: var(--paper); stroke: var(--c); stroke-width: 1.3px; }
+.wheel-mk.centre .sh { stroke-width: 2.5px; }
+.k-example-business .sh, .wheel-mk.k-example-business .sh { fill: var(--white); stroke: var(--ink); stroke-width: 2px; }
+.wheel-mk .dot { fill: var(--signal); }
+
+/* Labels show from the step of the zoom they were placed for. */
+.mv .lb { display: none; }
+.mv.z0 .t0, .mv.z1 .t1, .mv.z2 .t2, .mv.z3 .t3, .mv.z4 .t4, .mv.z5 .t5, .mv.z6 .t6, .mv.z7 .t7, .mv.z8 .t8, .mv.z9 .t9 { display: inline; }
+.lb text, .lb-arc { paint-order: stroke; stroke: var(--paper); stroke-linejoin: round; }
+.lb-hub text { font-size: 12px; font-weight: 600; fill: var(--ink); stroke-width: 4px; }
+.lb-centre text { font-size: 13.5px; font-weight: 800; }
+.lb-grp text { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.12em; fill: var(--ink-2); stroke-width: 4px; }
+.lb-arc { font-family: var(--font-mono); font-weight: 500; font-size: calc(10.5px * var(--u, 1)); letter-spacing: 0.12em; fill: var(--ink-2); stroke-width: calc(4px * var(--u, 1)); }
+/* While pointing, only the names that matter stay. */
+.mv.is-pointing .lb-hub:not(.is-pt, .is-lit) { display: none; }
+.mv .lb-hub.is-pt, .mv .lb-hub.is-lit, .mv .lb-hub.is-sel { display: inline; }
+.mv .lb-hub.is-pt text, .mv .lb-hub.is-sel text { font-weight: 800; }
+
+/* The business tree is typeset: it grows and shrinks with the zoom like a
+   page, but its text never falls below a readable size on screen. */
+.tt { fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+.tt-top { font-size: min(max(15px, calc(9.6px * var(--u, 1))), calc(19px * var(--u, 1))); font-weight: 600; }
+.tt-sub { font-size: min(max(14px, calc(9px * var(--u, 1))), calc(17px * var(--u, 1))); font-weight: 400; fill: var(--ink-2); }
+.tt-job { font-size: min(max(14.5px, calc(9.6px * var(--u, 1))), calc(18px * var(--u, 1))); font-weight: 600; }
+.tt-head { paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round; }
+.tree-mk > .ts { transform: scale(min(max(1, calc(0.6 * var(--u, 1))), calc(1.3 * var(--u, 1)))); }
+.ln.on-ask { display: none; }
+.ln.on-ask.is-lit, .ln.on-ask.is-near, .ln.on-ask.r-strong, .ln.on-ask.r-faint, .ln.on-ask.on-path { display: inline; }
+/* With script, the landing view leads with the wheel alone; the business structure and the bands
+   to it join as the view pulls back on exploring. Without script the whole drawing is simply there. */
+.mv .biz, .mv .bands { transition: opacity 0.5s ease 0.15s, visibility 0s; }
+@media (scripting: enabled) {
+  .explorer[data-state='landing'] .mv .biz, .explorer[data-state='landing'] .mv .bands { opacity: 0; visibility: hidden; animation: none; transition: none; }
+}
+.tt-count { font-family: var(--font-mono); font-weight: 500; font-size: min(max(11px, calc(8px * var(--u, 1))), calc(13px * var(--u, 1))); letter-spacing: 0.04em; fill: var(--clay); paint-order: stroke; stroke: var(--paper); stroke-width: 6px; stroke-linejoin: round; }
+.tree-guide { fill: none; stroke: #c9c8bd; stroke-width: 1.5; }
+.leader { fill: none; stroke: #8c948d; stroke-width: 1px; stroke-dasharray: 1 3; vector-effect: non-scaling-stroke; }
+.port { fill: var(--clay); }
+.tree-mk .sh { fill: var(--white); stroke: var(--c); stroke-width: 2; }
+.tree-mk .sh.fill { fill: var(--c); }
+
+/* The landing view draws itself in once: rings, then marks ring by ring, then lines and names. */
+@keyframes draw-in { from { opacity: 0; } }
+.mv.drawing .di-1 { animation: draw-in 0.5s ease-out both; }
+.mv.drawing .di-2 { animation: draw-in 0.35s ease-out both; }
+.mv.drawing .b0 { animation-delay: 0.3s; }
+.mv.drawing .b1 { animation-delay: 0.4s; }
+.mv.drawing .b2 { animation-delay: 0.5s; }
+.mv.drawing .b3, .mv.drawing .b4 { animation-delay: 0.6s; }
+.mv.drawing .b5 { animation-delay: 0.75s; }
+.mv.drawing .b6 { animation-delay: 0.9s; }
+.mv.drawing .tree-mk { animation-delay: 0.95s; }
+.mv.drawing .di-3 { animation: draw-in 0.6s ease-out 1.1s both; }
+.mv.drawing .di-4 { animation: draw-in 0.4s ease-out 1.45s both; }
+.mv.is-dragging { cursor: grabbing; }
+
+/* ---- who buys ----------------------------------------------------------------- */
+.col-head { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.14em; fill: var(--ink-3); }
+.bv-name { font-size: 13px; fill: var(--ink-2); }
+.bv-row .sh { fill: var(--c); }
+.bv-row.is-sel .bv-name, .bv-row.is-pt .bv-name, .bv-row.r-strong .bv-name { font-weight: 700; fill: var(--ink); }
+.bv-body .box { fill: var(--white); stroke: var(--ink); stroke-width: 1.5; }
+.bv-body .shadow { fill: rgb(12 21 16 / 12%); }
+.bv-body .bar { fill: var(--forest); }
+.bv-body-name { font-size: 13.5px; font-weight: 700; fill: var(--ink); }
+.bv-count { font-family: var(--font-mono); font-weight: 500; font-size: 11px; fill: var(--ink-3); }
+.bv-body.is-pt .box, .bv-body.is-sel .box { stroke-width: 2.5; }
+.bv-body.is-sel .ring, .bv-body.r-strong .ring { stroke-width: 2px; }
+
+/* ---- how a job runs ----------------------------------------------------------- */
+.job-card .box { fill: var(--white); stroke: var(--ink); stroke-width: 1.5; }
+.job-card .shadow { fill: rgb(12 21 16 / 12%); }
+.job-name { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; fill: var(--ink); }
+.job-card.is-pt .box, .job-card.r-strong .box { stroke-width: 2.5; }
+.job-card.r-strong .box { stroke: var(--forest); }
+.step .sh { fill: var(--clay); }
+.step-no { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.14em; fill: var(--clay); }
+.step-skill { font-size: 15.5px; font-weight: 600; fill: var(--ink); }
+.port-dot { fill: var(--clay); }
+.job-folder .sh { fill: var(--white); stroke: var(--c); stroke-width: 2; }
+.job-folder .sh.fill { fill: var(--c); }
+.folder-name { font-size: 14px; font-weight: 600; fill: var(--ink); }
+.count-num { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; fill: var(--ink); }
+.count-what { font-size: 13px; font-weight: 400; letter-spacing: 0; fill: var(--ink-2); }
+.counts .leader { stroke: #8c948d; }
+
+/* The lists set at phone width, or when the drawing has no room. */
+.view-list { margin: 8px 0 0; }
+.vl-section + .vl-section { margin-top: 26px; }
+.vl-heading { margin: 0 0 8px; font-size: 18px; }
+.vl-count { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink-3); }
+.vl, .vl-names, .jv-list, .jv-steps, .jv-folders { list-style: none; margin: 0; padding: 0; }
+.vl-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.vl-btn { font: inherit; color: var(--ink); background: none; border: 0; padding: 3px 0; min-height: 28px; text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; cursor: pointer; overflow-wrap: anywhere; }
+.vl-btn:hover { text-decoration-thickness: 2px; }
+.vl-btn.is-sel { font-weight: 800; box-shadow: inset 3px 0 0 var(--signal); padding-left: 8px; }
+.vl-name { font-weight: 700; font-size: 16px; }
+.vl-rels { margin: 4px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.vl-rels dt { margin-top: 6px; }
+.vl-rels dd { margin: 0 0 0 42px; }
+.vl-rel { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-weight: 500; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.vl-names li { font-size: 14.5px; }
+.jv-job { padding: 16px 0; border-top: 1.5px solid var(--ink); }
+.jv-name { margin: 0 0 10px; font-size: 21px; }
+.jv-name .vl-btn { font-weight: 800; text-decoration: none; }
+.jv-step { position: relative; padding: 8px 0 10px 16px; border-left: 2px solid var(--clay); margin-left: 4px; }
+.jv-step + .jv-step { margin-top: 4px; }
+.jv-skill { font-weight: 600; font-size: 16px; }
+.jv-no { color: var(--clay); margin-right: 4px; }
+.jv-does { margin: 2px 0 6px; font-size: 14px; }
+.jv-folders li { font-size: 14px; padding: 2px 0; overflow-wrap: anywhere; }
+.jv-count { color: var(--ink-2); }
+.vl-btn.r-strong { font-weight: 800; box-shadow: inset 3px 0 0 var(--signal); padding-left: 8px; }
+
+/* ---- at a glance ---------------------------------------------------------------- */
+.gl-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+.gl-side-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; margin: 0 0 10px; font-weight: 400; }
+.gl-side-name { flex: 0 0 100%; margin-bottom: 2px; color: var(--ink-3); font-size: 11px; }
+.gl-big { font-size: clamp(44px, 5vw, 64px); font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.gl-big-unit { font-size: 16px; font-weight: 600; color: var(--ink-2); }
+.gl-bar { display: block; margin: 0 0 10px; border: 1.5px solid var(--ink); background: var(--white); }
+.gl-bar .b2 { fill: var(--forest); }
+.gl-bar .b1 { fill: #7f9a76; }
+.gl-bar .b0 { fill: var(--white); }
+.gl-summary { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 18px; font-size: 13.5px; color: var(--ink-2); }
+.gl-sum { display: inline-flex; align-items: center; gap: 6px; }
+.gl-sum strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* A group is a row: its name and count, then its marks, busiest first. */
+.gl-groups { display: grid; grid-template-columns: minmax(0, 1fr); }
+.gl-group { display: grid; grid-template-columns: 172px minmax(0, 1fr); column-gap: 18px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+.gl-side-business .gl-group { grid-template-columns: 148px minmax(0, 1fr); }
+.gl-head { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
+.gl-label { display: block; }
+.gl-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 3px; }
+.gl-count { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink-3); }
+.gl-thin { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--clay); }
+.gl-tiles { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+svg.gl-tiles { display: block; max-width: 100%; height: auto; overflow: visible; }
+svg.gl-tile { flex: none; display: block; overflow: visible; }
+.gl-name { font-size: 13.5px; fill: var(--ink); }
+.gl-side-business { padding: 18px 20px 22px; background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
+/* Shade by fill as well as tone: solid, a heavy frame, a thin outline. */
+.gl-tile .sh { fill: var(--c); stroke: var(--c); stroke-width: 1px; }
+.gl-tile.sh-1 .sh { fill: var(--white); stroke-width: 4px; }
+.gl-tile.sh-0 .sh { fill: var(--paper); stroke: #6f7a71; stroke-width: 1.25px; }
+.gl-side-business .gl-tile.sh-0 .sh { fill: var(--white); }
+.gl-tile.is-pt .sh, .gl-tile.is-sel .sh { stroke: var(--ink); }
+.gl-tile.is-sel .ring { stroke-width: 2.4px; }
+/* Controls */
+.map-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.tool-group { display: flex; box-shadow: 4px 4px 0 var(--shadow); }
+.tool-group .map-btn + .map-btn { margin-left: -1.5px; }
+.map-btn { font: inherit; font-size: 13.5px; font-weight: 700; line-height: 1.2; padding: 0 12px; min-height: 36px; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; cursor: pointer; }
+.map-btn:hover { background: var(--paper); }
+.map-btn:focus-visible { position: relative; z-index: 1; }
+.map-btn-square { width: 36px; padding: 0; font-size: 20px; font-weight: 600; }
+.map-btn[aria-pressed='true'], .map-btn[aria-expanded='true'] { background: var(--forest); border-color: var(--forest); color: var(--white); }
+.map-btn-primary { background: var(--forest); border-color: var(--forest); color: var(--white); }
+.map-btn-primary:hover { background: var(--forest-dark); }
+
+/* Panels */
+.map-stack { display: flex; flex-direction: column; gap: 12px; }
+.panel { display: flex; flex-direction: column; min-height: 0; background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
+.panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--line); }
+.panel-head h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.panel-body { padding: 14px 16px 16px; min-height: 0; overflow-y: auto; }
+.panel-close { flex: none; width: 36px; height: 36px; display: grid; place-items: center; padding: 0; font: inherit; font-size: 22px; line-height: 1; color: var(--ink); background: none; border: 0; cursor: pointer; }
+.panel-close:hover { background: var(--paper); }
+.map-empty, .map-note { margin: 0 0 10px; font-size: 14.5px; }
+.map-help { margin: 0; font-size: 14.5px; }
+
+/* The list of every page */
+.node-list { margin: 0 var(--gutter) 40px; }
+.node-list .panel-head h2 { flex: 1; }
+.list-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 36px; padding: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; }
+.list-toggle::after { content: ''; flex: none; width: 8px; height: 8px; margin-right: 10px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(2px) rotate(-135deg); }
+.list-toggle[aria-expanded='false']::after { transform: translateY(-2px) rotate(45deg); }
+.node-list.is-folded .panel-head { border-bottom: 0; }
+.list-count { margin: 4px 0 10px; color: var(--ink-3); }
+.list-groups, #selection-body { max-height: 26rem; overflow-y: auto; }
+.list-groups { border-top: 1px solid var(--line); padding-top: 10px; }
+.list-group { margin-bottom: 16px; }
+.list-group h3 { margin: 0 0 4px; font-size: 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.list-layer { color: var(--ink-3); font-size: 10px; }
+.list-group ul { list-style: none; margin: 0; padding: 0; }
+.node-button { font: inherit; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); background: none; border: 0; border-left: 3px solid transparent; padding: 3px 0 3px 8px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.node-button:hover { color: var(--ink); text-decoration: underline; }
+.node-button[aria-current='true'] { color: var(--ink); font-weight: 700; border-left-color: var(--signal); }
+
+/* Fields */
+.field { display: grid; gap: 4px; margin-bottom: 10px; }
+.field label { font-weight: 700; font-size: 14px; color: var(--ink); }
+.select, .input { width: 100%; min-height: 40px; font: inherit; font-size: 15px; padding: 7px 10px; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; }
+
+/* The selected page */
+.selected-name { margin: 0 0 4px; font-size: 20px; overflow-wrap: anywhere; }
+.selected-name:focus-visible { outline-offset: 4px; }
+.selected-meta { margin: 0 0 12px; color: var(--clay); }
+.selected-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.connections { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.connections h4 { margin: 0 0 6px; }
+.connection-type { margin: 8px 0 2px; color: var(--ink-3); }
+.connection-list, .path-steps { margin: 0; padding: 0 0 0 1.2em; }
+.connection-list { list-style: square; }
+.connection-list li, .path-steps li { margin: 2px 0; font-size: 14.5px; }
+.link-button { vertical-align: top; font: inherit; font-weight: 600; line-height: 1.4; color: var(--ink); background: none; border: 0; padding: 2px 0; text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; cursor: pointer; overflow-wrap: anywhere; }
+.link-button:hover { text-decoration-thickness: 2px; }
+
+/* Find a path */
+.path-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.path-summary { margin: 0 0 6px; font-weight: 700; color: var(--ink); }
+.path-none { margin: 0; font-weight: 700; color: var(--ink); }
+.path-via { font-size: 13px; color: var(--ink-3); }
+
+/* Jobs: the list of jobs, then one job with its steps */
+.job-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.job-button { display: block; width: 100%; min-height: 40px; padding: 8px 12px; font: inherit; font-size: 15px; font-weight: 700; line-height: 1.3; text-align: left; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; cursor: pointer; overflow-wrap: anywhere; }
+.job-button:hover { background: var(--paper); box-shadow: inset 4px 0 0 var(--signal); }
+.job-name { margin: 0 0 2px; font-size: 20px; overflow-wrap: anywhere; }
+.job-name:focus-visible, .job-step-title:focus-visible, .jobs .panel-head h2:focus-visible { outline-offset: 4px; }
+.job-count { margin: 0 0 10px; color: var(--clay); }
+.job-steps { margin: 0 0 12px; padding: 0; list-style: none; counter-reset: job-step; display: grid; gap: 4px; }
+.job-steps li { counter-increment: job-step; display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); align-items: center; }
+.job-steps li::before { content: counter(job-step, decimal-leading-zero); font-family: var(--font-mono); font-weight: 500; font-size: 12px; letter-spacing: 0.1em; color: var(--clay); }
+.job-step-button { min-height: 32px; padding: 4px 10px; font-family: var(--font-mono); font-weight: 500; font-size: 13.5px; line-height: 1.3; text-align: left; color: var(--ink); background: var(--white); border: 1.5px solid var(--line); border-radius: 0; cursor: pointer; overflow-wrap: anywhere; }
+.job-step-button:hover { border-color: var(--ink); }
+.job-step-button[aria-current='step'] { color: var(--white); background: var(--forest); border-color: var(--forest); font-weight: 700; box-shadow: 3px 3px 0 var(--shadow); }
+.job-step-detail { margin: 0 0 12px; padding: 10px 0 0; border-top: 1px solid var(--line); }
+.job-step-title { margin: 0 0 4px; font-size: 16px; }
+.job-step-title .link-button { font-family: var(--font-mono); font-weight: 500; font-size: 15px; }
+.job-does { margin: 0 0 8px; font-size: 14.5px; color: var(--ink); }
+.job-lines { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 3px; }
+.job-lines li { font-size: 14px; color: var(--ink-2); overflow-wrap: anywhere; }
+.job-line-label { font-weight: 700; color: var(--ink); }
+.job-example { margin: 0 0 4px; padding: 6px 10px; font-size: 14px; color: var(--ink); background: var(--paper); border-left: 4px solid var(--signal); }
+.job-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.map-btn[aria-disabled='true'] { color: var(--ink-3); background: var(--white); border-color: var(--line); cursor: default; }
+.map-btn-primary[aria-disabled='true'] { color: var(--ink-3); background: var(--white); border-color: var(--line); }
+
+/* The key */
+.key-block + .key-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.key-title { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; margin: 0 0 8px; font-size: 14.5px; font-weight: 800; letter-spacing: -0.01em; }
+.key-title span { font-size: 12.5px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.legend-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
+.legend-list li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.legend-mark, .legend-line { flex: none; }
+.legend-count { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink-3); }
+.legend-wide { grid-column: 1 / -1; }
+.legend-star { margin-left: 2px; font-weight: 700; color: var(--clay); }
+.key-note { margin: 12px 0 10px; font-size: 13.5px; color: var(--ink-2); }
+.key-toggle { width: 100%; min-height: 40px; text-align: left; }
+
+.key-view + .key-view { margin-top: 0; }
+.legend-one { grid-template-columns: minmax(0, 1fr); }
+.legend-mark { overflow: visible; }
+
+/* Each drawing stays sharp: the whole map holds its marks the same size on
+   screen at any zoom (camera.ts picks the step). */
+.mv.us-0 { --u: 5.0000; }
+.mv.us-1 { --u: 4.6296; }
+.mv.us-2 { --u: 4.2867; }
+.mv.us-3 { --u: 3.9692; }
+.mv.us-4 { --u: 3.6751; }
+.mv.us-5 { --u: 3.4029; }
+.mv.us-6 { --u: 3.1508; }
+.mv.us-7 { --u: 2.9175; }
+.mv.us-8 { --u: 2.7013; }
+.mv.us-9 { --u: 2.5012; }
+.mv.us-10 { --u: 2.3160; }
+.mv.us-11 { --u: 2.1444; }
+.mv.us-12 { --u: 1.9856; }
+.mv.us-13 { --u: 1.8385; }
+.mv.us-14 { --u: 1.7023; }
+.mv.us-15 { --u: 1.5762; }
+.mv.us-16 { --u: 1.4595; }
+.mv.us-17 { --u: 1.3513; }
+.mv.us-18 { --u: 1.2512; }
+.mv.us-19 { --u: 1.1586; }
+.mv.us-20 { --u: 1.0727; }
+.mv.us-21 { --u: 0.9933; }
+.mv.us-22 { --u: 0.9197; }
+.mv.us-23 { --u: 0.8516; }
+.mv.us-24 { --u: 0.7885; }
+.mv.us-25 { --u: 0.7301; }
+.mv.us-26 { --u: 0.6760; }
+.mv.us-27 { --u: 0.6259; }
+.mv.us-28 { --u: 0.5796; }
+.mv.us-29 { --u: 0.5366; }
+.mv.us-30 { --u: 0.4969; }
+.mv.us-31 { --u: 0.4601; }
+.mv.us-32 { --u: 0.4260; }
+.mv.us-33 { --u: 0.3944; }
+.mv.us-34 { --u: 0.3652; }
+.mv.us-35 { --u: 0.3382; }
+.mv.us-36 { --u: 0.3131; }
+.mv.us-37 { --u: 0.2899; }
+.mv.us-38 { --u: 0.2685; }
+.mv.us-39 { --u: 0.2486; }
+.mv.us-40 { --u: 0.2302; }
+.mv.us-41 { --u: 0.2131; }
+.mv.us-42 { --u: 0.1973; }
+.mv.us-43 { --u: 0.1827; }
+.mv.us-44 { --u: 0.1692; }
+.mv.us-45 { --u: 0.1566; }
+.mv.us-46 { --u: 0.1450; }
+.mv.us-47 { --u: 0.1343; }
+.mv.us-48 { --u: 0.1243; }
+
+/* 1. Without script: the whole map as a picture that scales to the page. */
+@media (scripting: none) {
+  .map-stage { margin: 16px var(--gutter); border: 1.5px solid var(--ink); background: var(--paper); }
+  .mv-below { display: none; }
+  .node-list { margin-top: 16px; }
+}
+
+/* 2. Wide screen, with script: the drawing fills the window. */
+@media (scripting: enabled) and (min-width: 761px) {
+  .explorer { height: calc(100vh - var(--bar-height)); height: calc(100dvh - var(--bar-height)); min-height: 540px; overflow: hidden; }
+  .map-stage { position: absolute; inset: 0; z-index: 0; margin: 0; }
+  .view-pane { position: absolute; inset: 0; }
+  .pane-network { height: auto; min-height: 0; margin: 0; border: 0; }
+  .vp-map, .mv-stage { position: absolute; inset: 0; }
+  .mv-stage .mv { width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  .mv-below { display: none; }
+
+  /* The other drawn views scroll inside the stage, clear of the switcher and the list. */
+  .view-pane[data-src] { overflow: auto; overscroll-behavior: contain; padding: 80px 28px 40px calc(var(--list-w) + 44px); container-type: inline-size; }
+  .explorer.list-folded .view-pane[data-src] { padding-left: 28px; padding-top: 136px; }
+  .view-pane[data-src] .vp-inner { max-width: 1320px; }
+  .bv, .jv { width: 100%; height: auto; }
+  .bv { max-width: 1280px; }
+  .jv { max-width: 1340px; }
+  .view-note { position: absolute; top: 72px; left: calc(var(--list-w) + 44px); margin: 0; }
+  .explorer.list-folded .view-note { top: 128px; left: 28px; }
+  .explorer[data-view='map'] .view-note { left: 50%; transform: translateX(-50%); }
+
+  /* Landing: the headline over a fade to paper. The drawing is fitted to the right of it. */
+  .fade { display: block; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgb(245 244 239 / 97%) 0, rgb(245 244 239 / 92%) var(--lead-right), rgb(245 244 239 / 0%) calc(var(--lead-right) + 120px)); }
+  .lead { position: absolute; z-index: 2; left: var(--gutter); top: 50%; transform: translateY(-50%); width: var(--lead-w); max-width: none; padding: 0; }
+  .lead, .fade { transition: opacity 0.3s ease, visibility 0s linear 0s; }
+  /* The headline goes at once, so its button is never left half-faded and unreadable; the wash behind it fades. */
+  .explorer[data-state='exploring'] .lead { opacity: 0; visibility: hidden; transition: none; }
+  .explorer[data-state='exploring'] .fade { opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0s linear 0.25s; }
+  .explorer[data-state='landing'] .node-list, .explorer[data-state='landing'] .map-dock, .explorer[data-state='landing'] .view-switch { display: none; }
+
+  /* Exploring: the switcher top left, the list beneath it, the controls and panels on the right. */
+  .view-switch { position: absolute; top: 16px; left: 16px; margin: 0; }
+  .node-list { position: absolute; z-index: 3; top: 72px; left: 16px; bottom: 16px; width: var(--list-w); margin: 0; }
+  .node-list.is-folded { bottom: auto; }
+  .node-list .list-body { flex: 1; display: flex; flex-direction: column; }
+  .node-list .list-groups { flex: 1; min-height: 0; max-height: none; }
+  .map-dock { position: absolute; z-index: 3; top: 16px; right: 16px; bottom: 16px; left: calc(var(--switch-w) + 32px); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
+  .map-dock > * { pointer-events: auto; }
+  /* The column scrolls as a whole if the open panels outgrow it; only the
+     selected page, which always holds buttons, shrinks and scrolls inside. */
+  .map-stack { flex: 0 1 auto; width: min(380px, 100%); min-height: 0; overflow-y: auto; padding: 0 6px 6px 0; margin-right: -6px; }
+  .map-stack .panel { flex: none; }
+  .map-stack #selection { flex: 0 1 auto; min-height: 180px; }
+  .map-stack .panel-body { overflow-y: visible; }
+  .map-stack #selection-body { max-height: none; overflow-y: auto; }
+
+  /* At a glance: the defence reference and the business side by side. */
+  .gl-sides { grid-template-columns: minmax(0, 1.72fr) minmax(360px, 1fr); align-items: start; }
+}
+
+/* Too narrow for a drawing's columns: who buys and how a job runs become lists. */
+@container (max-width: 820px) {
+  .bv, .jv, .vp-buyers > .view-key, .vp-jobs > .view-key { display: none; }
+  .view-list { display: block; }
+}
+@container (max-width: 900px) {
+  .gl-sides { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Narrower wide windows: the facts stay on one row. */
+@media (scripting: enabled) and (min-width: 761px) and (max-width: 1180px) {
+  .lead .facts { gap: 14px 20px; }
+  .lead .facts dd { font-size: 22px; }
+  .lead .facts dt { font-size: 10px; letter-spacing: 0.06em; }
+}
+
+/* Short wide windows: the headline tightens so the facts stay on screen. */
+@media (scripting: enabled) and (min-width: 761px) and (max-height: 760px) {
+  .lead .display { font-size: clamp(36px, 4vw, 56px); margin: 12px 0 14px; }
+  .lead-purpose { font-size: 16.5px; margin-bottom: 20px; }
+  .lead-actions { margin-bottom: 22px; }
+  .lead .facts { padding-top: 14px; }
+}
+@media (scripting: enabled) and (min-width: 761px) and (max-height: 600px) {
+  .lead-purpose { display: none; }
+}
+
+/* 3. Phone width, with script: an ordinary page that scrolls. */
+@media (scripting: enabled) and (max-width: 760px) {
+  .lead { padding: 28px var(--gutter) 0; }
+  .lead .display { font-size: clamp(38px, 11vw, 48px); }
+  .lead-purpose { font-size: 16.5px; }
+  .lead-actions { margin-bottom: 24px; }
+  .lead-actions .btn { flex: 1 1 auto; }
+  .lead .facts { gap: 14px 22px; }
+  .explorer[data-state='exploring'] .lead { display: none; }
+  /* The switcher is a row that scrolls sideways inside itself, never the page. */
+  .view-switch { margin: 16px 0 0; }
+  .switch-row { width: auto; max-width: none; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 0 var(--gutter) 6px; box-shadow: none; }
+  .switch-row::-webkit-scrollbar { display: none; }
+  .switch-row .switch-btn { box-shadow: 0 4px 0 var(--shadow); }
+  .switch-menu { right: var(--gutter); }
+  .map-stage { margin-top: 12px; }
+  .mv-stage { height: min(88vw, 56vh); height: min(88vw, 56svh); min-height: 280px; border-block: 1.5px solid var(--ink); }
+  .mv-stage .mv { width: 100%; height: 100%; touch-action: none; }
+  .mv-stage .mv .tree-text, .mv-stage .mv .tree-marks, .mv-stage .mv .tree-lines, .mv-stage .mv .bands, .mv-stage .mv .tree-guide, .mv-stage .mv .leader, .mv-stage .mv .tt-head, .mv-stage .mv .layer-title, .mv-stage .mv .layer-rule, .mv-stage .mv .filed-title { display: none; }
+  .mv-below { padding: 18px var(--gutter) 0; }
+  /* On a phone the families' names wait for the first zoom, so none is cut at the edge. */
+  .mv-stage .mv:not(.z3) .lb-grp { display: none; }
+  .mv-narrow { width: 100%; max-width: 420px; height: auto; }
+  .view-pane[data-src] { padding: 6px var(--gutter) 8px; container-type: inline-size; }
+  .view-note { margin: 0 var(--gutter) 12px; }
+  .explorer[data-state='exploring'] .map-stage { margin-top: 12px; }
+  .pane-network { height: min(80vw, 52vh); height: min(80vw, 52svh); margin: 0; border-width: 1.5px 0; }
+  .map-dock { display: flex; flex-direction: column; gap: 12px; padding: 12px var(--gutter) 0; }
+  .map-tools { justify-content: flex-start; }
+  .node-list { margin: 12px var(--gutter) 32px; }
+  .gl-group, .gl-side-business .gl-group { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+}

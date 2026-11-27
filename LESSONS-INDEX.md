@@ -15,3 +15,5 @@
 | 2026-11-27 | Map layout | Cross-layer edges pull the two regions into each other; a wall keeps them apart |
 | 2026-11-27 | Page script | A page `<script>` builds to an external module in `/_astro/` here; check the built HTML |
 | 2026-11-27 | Map panels | A hub node lists dozens of connections; cap and scroll the panels or the map leaves the screen |
+| 2026-11-27 | Playwright and aria-disabled | Playwright will not press an aria-disabled button without `force` |
+| 2026-11-27 | Labels on a lit job | A step can light hundreds of pages; label only the larger, keep lit labels clear |

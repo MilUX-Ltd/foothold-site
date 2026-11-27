@@ -19,9 +19,10 @@ export const PALETTE = {
   clay: '#a35c17',
   signal: '#e2611c',
   rust: '#8a2b0a',
-  /** A tint for the region behind each layer. */
-  regionDefence: '#ebeadf',
-  regionBusiness: '#ffffff',
+  /** Quiet tints for the region behind each layer, a step off the paper. */
+  regionDefence: '#eeede5',
+  regionBusiness: '#fcfbf8',
+  regionEdge: '#e2e1d7',
 } as const;
 
 /** The canvas font. Literal, because a canvas font string ignores var(). */
@@ -84,7 +85,54 @@ export function edgeStyle(type: string): EdgeStyle {
 /** The highlighted path: heavier than any edge type, in the accent. */
 export const PATH_STYLE: EdgeStyle = { colour: PALETTE.signal, width: 4, dash: [] };
 
+/**
+ * A job on the map. Each tier differs by size and outline or line weight as
+ * well as by tone, so none relies on colour alone:
+ * - strong (the skill and its folders): full size and over, with a heavy ring,
+ *   and its lines drawn heavier than usual in their own type's pattern;
+ * - soft (the defence pages behind the folders): full size, no ring;
+ * - faint (the job's other steps): smaller, with a thin dashed ring;
+ * - dimmed (everything else): smaller still and pale, with no label.
+ */
+export const ROUTE_STYLE = {
+  strong: { alpha: 1, scale: 1.2, ring: PALETTE.signal, ringWidth: 3, ringGap: 4, edgeExtra: 1.6, edgeAlpha: 1 },
+  soft: { alpha: 0.9, scale: 1, edgeAlpha: 0.45 },
+  faint: { alpha: 0.55, scale: 0.85, ring: PALETTE.ink3, ringWidth: 1.25, ringGap: 3, ringDash: [3, 3], edgeAlpha: 0.45 },
+  dim: { alpha: 0.14, scale: 0.7, edgeAlpha: 0.05 },
+} as const;
+
 /** A node's size in map units, from how many edges it has. */
 export function nodeRadius(degree: number): number {
   return 5 + Math.min(Math.sqrt(degree) * 2.4, 19);
 }
+
+/**
+ * A mark's radius on screen at a zoom. Marks shrink more slowly than the map
+ * when it is zoomed out, so the whole map stays legible at the size it is
+ * fitted to, and never fall below a size that can be seen and pointed at.
+ */
+export function screenRadius(radius: number, zoom: number): number {
+  return Math.max(radius * Math.pow(zoom, 0.6), 2.5);
+}
+
+/** Labels: the text, its paper halo and when a mark earns one. */
+export const LABEL_STYLE = {
+  size: 12,
+  weight: 600,
+  strongSize: 13,
+  strongWeight: 700,
+  colour: PALETTE.ink,
+  halo: PALETTE.paper,
+  haloWidth: 4,
+  /** A mark at least this many screen pixels across its radius is offered a label. */
+  minRadius: 6,
+  /** Longest label before it is cut short with an ellipsis. */
+  maxChars: 34,
+} as const;
+
+/** The titles over the two layers' regions. */
+export const LAYER_TITLE_STYLE = {
+  font: '500 11px "Roboto Mono", ui-monospace, Menlo, monospace',
+  colour: PALETTE.ink2,
+  letterSpacing: '1.1px',
+} as const;

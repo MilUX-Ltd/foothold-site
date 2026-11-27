@@ -11,15 +11,15 @@ describe('graph model', () => {
   it('has the expected nodes per layer and kind', () => {
     const graph = buildGraph(map);
     expect(countByLayerAndKind(graph)).toEqual({
-      business: { folder: 3, route: 2, skill: 3, vault: 1 },
-      defence: { cluster: 1, 'event-series': 1, framework: 1, organisation: 2, portal: 1, programme: 1 },
+      business: { folder: 4, route: 2, skill: 3, vault: 1 },
+      defence: { cluster: 1, 'event-series': 1, 'example-business': 1, framework: 1, organisation: 2, portal: 1, programme: 1 },
     });
-    expect(graph.nodes).toHaveLength(16);
+    expect(graph.nodes).toHaveLength(18);
   });
 
   it('resolves every edge to two nodes it holds', () => {
     const graph = buildGraph(map);
-    expect(graph.edges).toHaveLength(20);
+    expect(graph.edges).toHaveLength(22);
     for (const edge of graph.edges) {
       expect(graph.byId.get(edge.from), edge.from).toBeDefined();
       expect(graph.byId.get(edge.to), edge.to).toBeDefined();
@@ -49,7 +49,7 @@ describe('graph model', () => {
 
   it('groups nodes by kind, defence first, names in order', () => {
     const groups = groupByKind(buildGraph(map));
-    expect(groups.map((g) => g.kind)).toEqual(['cluster', 'event-series', 'framework', 'organisation', 'portal', 'programme', 'folder', 'route', 'skill', 'vault']);
+    expect(groups.map((g) => g.kind)).toEqual(['cluster', 'event-series', 'example-business', 'framework', 'organisation', 'portal', 'programme', 'folder', 'route', 'skill', 'vault']);
     const orgs = groups.find((g) => g.kind === 'organisation');
     expect(orgs?.layer).toBe('defence');
     expect(orgs?.nodes.map((n) => n.name)).toEqual(['Defence Science and Technology Laboratory', 'Ministry of Defence']);
