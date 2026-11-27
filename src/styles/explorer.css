@@ -1,0 +1,185 @@
+/* The map (MapExplorer.astro), on the home page and /map/. Tokens and the
+   shared components come from base.css. The canvas colours live in
+   src/lib/graph/style.ts as literal values, because a canvas cannot read
+   these custom properties.
+
+   Three layouts, built up in this order:
+   1. Without script, and as the base: an ordinary page. The headline, a box
+      where the drawing would be that says it needs script, and the list of
+      every page. Controls that need script are not shown.
+   2. With script, on a wide screen: the map fills the window under the top
+      bar. In the landing state the headline sits on the left over a fade to
+      paper; in the exploring state the headline goes and the list, the
+      controls and the panels lie over the map.
+   3. With script, at phone width: the headline first, the map at a fixed
+      share of the screen height, then the controls and the panels as
+      ordinary sections. */
+
+.explorer { --lead-w: min(540px, 42vw); --lead-right: calc(var(--gutter) + var(--lead-w)); position: relative; }
+
+/* Headline */
+.lead { max-width: 46rem; padding: 40px var(--gutter) 8px; }
+.lead .kicker { flex-wrap: wrap; gap: 4px 10px; }
+.lead .kicker span { white-space: nowrap; }
+.lead .display { margin: 16px 0 18px; font-size: clamp(42px, 4.6vw, 68px); }
+.lead-purpose { margin: 0 0 26px; font-size: 18px; line-height: 1.5; color: var(--ink-2); max-width: 31em; }
+.lead-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 30px; }
+.lead .facts { margin: 0; padding-top: 20px; border-top: 1px solid var(--line); gap: 22px 28px; }
+.fade { display: none; }
+
+/* The canvas */
+.map-stage { position: relative; height: 40vh; min-height: 260px; margin: 16px var(--gutter); background: var(--paper); border: 1.5px solid var(--ink); }
+.map-canvas { display: block; width: 100%; height: 100%; background: #f5f4ef; cursor: grab; touch-action: none; }
+.map-canvas.is-pointing { cursor: pointer; }
+.map-canvas:focus-visible { outline-offset: -3px; }
+.map-waiting { position: absolute; inset: 0; margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--ink-2); font-weight: 600; }
+.with-script { display: none; }
+@media (scripting: enabled) {
+  .without-script { display: none; }
+  .with-script { display: inline; }
+}
+@media (scripting: none) {
+  .needs-script { display: none !important; }
+}
+
+/* Controls */
+.map-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.tool-group { display: flex; box-shadow: 4px 4px 0 var(--shadow); }
+.tool-group .map-btn + .map-btn { margin-left: -1.5px; }
+.map-btn { font: inherit; font-size: 13.5px; font-weight: 700; line-height: 1.2; padding: 0 12px; min-height: 36px; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; cursor: pointer; }
+.map-btn:hover { background: var(--paper); }
+.map-btn:focus-visible { position: relative; z-index: 1; }
+.map-btn-square { width: 36px; padding: 0; font-size: 20px; font-weight: 600; }
+.map-btn[aria-pressed='true'], .map-btn[aria-expanded='true'] { background: var(--forest); border-color: var(--forest); color: var(--white); }
+.map-btn-primary { background: var(--forest); border-color: var(--forest); color: var(--white); }
+.map-btn-primary:hover { background: var(--forest-dark); }
+
+/* Panels */
+.map-stack { display: flex; flex-direction: column; gap: 12px; }
+.panel { display: flex; flex-direction: column; min-height: 0; background: var(--white); border: 1.5px solid var(--ink); box-shadow: var(--shadow-card); }
+.panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--line); }
+.panel-head h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.panel-body { padding: 14px 16px 16px; min-height: 0; overflow-y: auto; }
+.panel-close { flex: none; width: 36px; height: 36px; display: grid; place-items: center; padding: 0; font: inherit; font-size: 22px; line-height: 1; color: var(--ink); background: none; border: 0; cursor: pointer; }
+.panel-close:hover { background: var(--paper); }
+.map-empty, .map-note { margin: 0 0 10px; font-size: 14.5px; }
+.map-help { margin: 0; font-size: 14.5px; }
+
+/* The list of every page */
+.node-list { margin: 0 var(--gutter) 40px; }
+.node-list .panel-head h2 { flex: 1; }
+.list-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 36px; padding: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; }
+.list-toggle::after { content: ''; flex: none; width: 8px; height: 8px; margin-right: 10px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(2px) rotate(-135deg); }
+.list-toggle[aria-expanded='false']::after { transform: translateY(-2px) rotate(45deg); }
+.node-list.is-folded .panel-head { border-bottom: 0; }
+.list-count { margin: 4px 0 10px; color: var(--ink-3); }
+.list-groups, #selection-body { max-height: 26rem; overflow-y: auto; }
+.list-groups { border-top: 1px solid var(--line); padding-top: 10px; }
+.list-group { margin-bottom: 16px; }
+.list-group h3 { margin: 0 0 4px; font-size: 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.list-layer { color: var(--ink-3); font-size: 10px; }
+.list-group ul { list-style: none; margin: 0; padding: 0; }
+.node-button { font: inherit; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); background: none; border: 0; border-left: 3px solid transparent; padding: 3px 0 3px 8px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.node-button:hover { color: var(--ink); text-decoration: underline; }
+.node-button[aria-current='true'] { color: var(--ink); font-weight: 700; border-left-color: var(--signal); }
+
+/* Fields */
+.field { display: grid; gap: 4px; margin-bottom: 10px; }
+.field label { font-weight: 700; font-size: 14px; color: var(--ink); }
+.select, .input { width: 100%; min-height: 40px; font: inherit; font-size: 15px; padding: 7px 10px; color: var(--ink); background: var(--white); border: 1.5px solid var(--ink); border-radius: 0; }
+
+/* The selected page */
+.selected-name { margin: 0 0 4px; font-size: 20px; overflow-wrap: anywhere; }
+.selected-name:focus-visible { outline-offset: 4px; }
+.selected-meta { margin: 0 0 12px; color: var(--clay); }
+.selected-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.connections { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.connections h4 { margin: 0 0 6px; }
+.connection-type { margin: 8px 0 2px; color: var(--ink-3); }
+.connection-list, .path-steps { margin: 0; padding: 0 0 0 1.2em; }
+.connection-list { list-style: square; }
+.connection-list li, .path-steps li { margin: 2px 0; font-size: 14.5px; }
+.link-button { vertical-align: top; font: inherit; font-weight: 600; line-height: 1.4; color: var(--ink); background: none; border: 0; padding: 2px 0; text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; cursor: pointer; overflow-wrap: anywhere; }
+.link-button:hover { text-decoration-thickness: 2px; }
+
+/* Find a path */
+.path-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.path-summary { margin: 0 0 6px; font-weight: 700; color: var(--ink); }
+.path-none { margin: 0; font-weight: 700; color: var(--ink); }
+.path-via { font-size: 13px; color: var(--ink-3); }
+
+/* The key */
+.key-block + .key-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.key-title { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; margin: 0 0 8px; font-size: 14.5px; font-weight: 800; letter-spacing: -0.01em; }
+.key-title span { font-size: 12.5px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.legend-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
+.legend-list li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.legend-mark, .legend-line { flex: none; }
+.legend-count { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink-3); }
+.legend-wide { grid-column: 1 / -1; }
+.legend-star { margin-left: 2px; font-weight: 700; color: var(--clay); }
+.key-note { margin: 12px 0 10px; font-size: 13.5px; color: var(--ink-2); }
+.key-toggle { width: 100%; min-height: 40px; text-align: left; }
+
+/* 2. Wide screen, with script: the map fills the window. */
+@media (scripting: enabled) and (min-width: 761px) {
+  .explorer { height: calc(100vh - var(--bar-height)); height: calc(100dvh - var(--bar-height)); min-height: 540px; overflow: hidden; }
+  .map-stage { position: absolute; inset: 0; z-index: 0; height: auto; min-height: 0; margin: 0; border: 0; }
+
+  /* Landing: the headline over a fade to paper. The drawing is fitted to the right of it. */
+  .fade { display: block; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgb(245 244 239 / 97%) 0, rgb(245 244 239 / 92%) var(--lead-right), rgb(245 244 239 / 0%) calc(var(--lead-right) + 120px)); }
+  .lead { position: absolute; z-index: 2; left: var(--gutter); top: 50%; transform: translateY(-50%); width: var(--lead-w); max-width: none; padding: 0; }
+  .lead, .fade { transition: opacity 0.3s ease, visibility 0s linear 0s; }
+  .explorer[data-state='exploring'] .lead, .explorer[data-state='exploring'] .fade { opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0s linear 0.25s; }
+  .explorer[data-state='landing'] .node-list, .explorer[data-state='landing'] .map-dock { display: none; }
+
+  /* Exploring: the list on the left, the controls and panels on the right. */
+  .node-list { position: absolute; z-index: 3; top: 16px; left: 16px; bottom: 16px; width: min(340px, 32vw); margin: 0; }
+  .node-list.is-folded { bottom: auto; }
+  .node-list .list-body { flex: 1; display: flex; flex-direction: column; }
+  .node-list .list-groups { flex: 1; min-height: 0; max-height: none; }
+  .map-dock { position: absolute; z-index: 3; top: 16px; right: 16px; bottom: 16px; left: calc(min(340px, 32vw) + 32px); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
+  .map-dock > * { pointer-events: auto; }
+  /* The column scrolls as a whole if the open panels outgrow it; only the
+     selected page, which always holds buttons, shrinks and scrolls inside. */
+  .map-stack { flex: 0 1 auto; width: min(380px, 100%); min-height: 0; overflow-y: auto; padding: 0 6px 6px 0; margin-right: -6px; }
+  .map-stack .panel { flex: none; }
+  .map-stack #selection { flex: 0 1 auto; min-height: 180px; }
+  .map-stack .panel-body { overflow-y: visible; }
+  .map-stack #selection-body { max-height: none; overflow-y: auto; }
+}
+
+/* Narrower wide windows: the facts stay on one row. */
+@media (scripting: enabled) and (min-width: 761px) and (max-width: 1180px) {
+  .lead .facts { gap: 14px 20px; }
+  .lead .facts dd { font-size: 22px; }
+  .lead .facts dt { font-size: 10px; letter-spacing: 0.06em; }
+}
+
+/* Short wide windows: the headline tightens so the facts stay on screen. */
+@media (scripting: enabled) and (min-width: 761px) and (max-height: 760px) {
+  .lead .display { font-size: clamp(36px, 4vw, 56px); margin: 12px 0 14px; }
+  .lead-purpose { font-size: 16.5px; margin-bottom: 20px; }
+  .lead-actions { margin-bottom: 22px; }
+  .lead .facts { padding-top: 14px; }
+}
+@media (scripting: enabled) and (min-width: 761px) and (max-height: 600px) {
+  .lead-purpose { display: none; }
+}
+
+/* 3. Phone width, with script: an ordinary page that scrolls. */
+@media (scripting: enabled) and (max-width: 760px) {
+  .lead { padding: 28px var(--gutter) 0; }
+  .lead .display { font-size: clamp(38px, 11vw, 48px); }
+  .lead-purpose { font-size: 16.5px; }
+  .lead-actions { margin-bottom: 24px; }
+  .lead-actions .btn { flex: 1 1 auto; }
+  .lead .facts { gap: 14px 22px; }
+  .explorer[data-state='exploring'] .lead { display: none; }
+  /* The drawing is wider than it is tall, so the frame follows the screen's width, within a share of its height. */
+  .map-stage { height: min(72vw, 56vh); height: min(72vw, 56svh); min-height: 260px; margin: 24px 0 0; border-width: 1.5px 0; }
+  .explorer[data-state='exploring'] .map-stage { height: min(80vw, 52vh); height: min(80vw, 52svh); margin-top: 0; border-top: 0; }
+  .map-dock { display: flex; flex-direction: column; gap: 12px; padding: 12px var(--gutter) 0; }
+  .map-tools { justify-content: flex-start; }
+  .node-list { margin: 12px var(--gutter) 32px; }
+}

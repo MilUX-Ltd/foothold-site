@@ -1,9 +1,13 @@
-// The map page's script: fetches the settled graph from this site, starts the
-// renderer, and joins the map, the list, the selection panel, the path
-// controls and the address together so each drives the others.
+// The map's script: fetches the settled graph from this site, starts the
+// renderer, and joins the map, the list, the panels, the path controls and the
+// address together so each drives the others. It also moves the page from the
+// landing state (the headline over the map) to the exploring state (the map
+// with its panels), and tells the renderer which part of the canvas the panels
+// leave free, so the drawing is never fitted underneath them.
 //
 // Text from the map file is only ever set as textContent, never as markup.
 import { connectionsOf, typeLabel } from '../../lib/graph/connections';
+import { freeArea, type Rect } from '../../lib/graph/fit';
 import { kindName, layerLabel, type Graph } from '../../lib/graph/model';
 import { shortestPath, type PathResult } from '../../lib/graph/path';
 import { readPayload } from '../../lib/graph/payload';
@@ -22,16 +26,114 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { className?: 
 
 function byId<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
-  if (!node) throw new Error(`The map page is missing #${id}`);
+  if (!node) throw new Error(`The map is missing #${id}`);
   return node as T;
 }
 
+/** Whether an element takes up room on screen. */
+function shown(node: Element | null): node is HTMLElement {
+  if (!(node instanceof HTMLElement)) return false;
+  const style = getComputedStyle(node);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = node.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
 export async function startViewer(): Promise<void> {
+  const explorer = byId<HTMLElement>('explorer');
   const canvas = byId<HTMLCanvasElement>('map-canvas');
   const status = byId<HTMLElement>('map-status');
   const waiting = byId<HTMLElement>('map-waiting');
+  const waitingText = byId<HTMLElement>('map-waiting-text');
+  const search = byId<HTMLInputElement>('map-search');
+  const stack = explorer.querySelector<HTMLElement>('.map-stack');
+  const tools = explorer.querySelector<HTMLElement>('.map-tools');
+  const list = byId<HTMLElement>('node-list');
+  const lead = document.getElementById('lead');
+  let renderer: MapRenderer | null = null;
+
+  const say = (message: string) => {
+    // Clear first so the same message twice is still announced.
+    status.textContent = '';
+    window.setTimeout(() => (status.textContent = message), 30);
+  };
+
+  // ---- the free part of the canvas -----------------------------------------
+  // Panels lie over the map on a wide screen. Whatever of theirs overlaps the
+  // canvas is cut away, and the drawing is fitted into what is left. On a
+  // phone the panels sit below the map, overlap nothing, and the whole canvas
+  // is free.
+  function updateFreeArea(options: { animate?: boolean } = {}) {
+    if (!renderer) return;
+    const c = canvas.getBoundingClientRect();
+    const container: Rect = { left: 0, top: 0, width: c.width, height: c.height };
+    const obstacles: Rect[] = [];
+    for (const node of [lead, list, tools, stack]) {
+      if (!shown(node)) continue;
+      const r = node.getBoundingClientRect();
+      obstacles.push({ left: r.left - c.left, top: r.top - c.top, width: r.width, height: r.height });
+    }
+    renderer.setFreeArea(freeArea(container, obstacles, 20), { animate: options.animate && !renderer.reducedMotion });
+  }
+
+  // ---- landing and exploring ------------------------------------------------
+  const isLanding = () => explorer.dataset.state === 'landing';
+  function enterExploring(options: { focusSearch?: boolean } = {}) {
+    if (!isLanding()) {
+      if (options.focusSearch) search.focus();
+      return;
+    }
+    explorer.dataset.state = 'exploring';
+    updateFreeArea({ animate: true });
+    if (options.focusSearch) search.focus();
+  }
+  document.getElementById('explore')?.addEventListener('click', () => enterExploring({ focusSearch: true }));
+
+  // ---- panels that open and close ------------------------------------------
+  const toggles = new Map<string, HTMLButtonElement>();
+  for (const button of explorer.querySelectorAll<HTMLButtonElement>('button.panel-toggle[data-panel]')) toggles.set(button.dataset.panel!, button);
+  function setPanel(id: string, open: boolean, options: { focus?: 'toggle' } = {}) {
+    const panel = byId<HTMLElement>(id);
+    const toggle = toggles.get(id);
+    if (panel.hidden === !open && toggle?.getAttribute('aria-expanded') === String(open)) return;
+    panel.hidden = !open;
+    toggle?.setAttribute('aria-expanded', String(open));
+    updateFreeArea({ animate: true });
+    if (options.focus === 'toggle') toggle?.focus();
+  }
+  for (const [id, button] of toggles) button.addEventListener('click', () => setPanel(id, button.getAttribute('aria-expanded') !== 'true'));
+  for (const button of explorer.querySelectorAll<HTMLButtonElement>('button[data-close]')) {
+    button.addEventListener('click', () => setPanel(button.dataset.close!, false, { focus: 'toggle' }));
+  }
+  for (const id of toggles.keys()) {
+    byId<HTMLElement>(id).addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      ev.preventDefault();
+      setPanel(id, false, { focus: 'toggle' });
+    });
+  }
+
+  // The list's heading becomes the button that folds it away.
+  const listHeading = list.querySelector<HTMLElement>('h2[data-toggles]');
+  if (listHeading) {
+    const body = byId<HTMLElement>(listHeading.dataset.toggles!);
+    const button = el('button', { className: 'list-toggle', text: listHeading.textContent?.trim() ?? '' });
+    button.type = 'button';
+    button.id = 'list-toggle';
+    button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-controls', body.id);
+    listHeading.replaceChildren(button);
+    button.addEventListener('click', () => {
+      const open = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(open));
+      body.hidden = !open;
+      list.classList.toggle('is-folded', !open);
+      updateFreeArea({ animate: true });
+    });
+  }
+
+  // ---- the data and the renderer -------------------------------------------
   let graph: Graph;
-  let renderer: MapRenderer;
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   try {
     const response = await fetch(DATA_URL, { credentials: 'same-origin' });
@@ -40,20 +142,22 @@ export async function startViewer(): Promise<void> {
     graph = g;
     renderer = new MapRenderer(canvas, graph, layout, motionQuery.matches);
   } catch (error) {
-    waiting.textContent = `The drawing could not start (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`;
+    waitingText.textContent = `The drawing could not start (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`;
     return;
   }
+  const r = renderer;
   waiting.hidden = true;
   canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
   motionQuery.addEventListener('change', () => {
-    renderer.reducedMotion = motionQuery.matches;
+    r.reducedMotion = motionQuery.matches;
     canvas.dataset.motion = motionQuery.matches ? 'reduced' : 'full';
   });
 
   const listButtons = new Map<string, HTMLButtonElement>();
-  for (const button of document.querySelectorAll<HTMLButtonElement>('#node-list button[data-id]')) {
+  for (const button of list.querySelectorAll<HTMLButtonElement>('button[data-id]')) {
     if (button.dataset.id) listButtons.set(button.dataset.id, button);
   }
+  const selectionPanel = byId<HTMLElement>('selection');
   const selectionBody = byId<HTMLElement>('selection-body');
   const pathFrom = byId<HTMLSelectElement>('path-from');
   const pathTo = byId<HTMLSelectElement>('path-to');
@@ -61,11 +165,6 @@ export async function startViewer(): Promise<void> {
   const modeButton = byId<HTMLButtonElement>('map-mode');
 
   let state: MapState = { ...DEFAULT_STATE };
-  const say = (message: string) => {
-    // Clear first so the same message twice is still announced.
-    status.textContent = '';
-    window.setTimeout(() => (status.textContent = message), 30);
-  };
   const writeAddress = () => {
     const query = stateToQuery(state);
     window.history.replaceState(null, '', `${window.location.pathname}${query}${window.location.hash}`);
@@ -90,6 +189,7 @@ export async function startViewer(): Promise<void> {
     const fromHere = el('button', { className: 'map-btn', text: 'Path from here' });
     fromHere.type = 'button';
     fromHere.addEventListener('click', () => {
+      setPanel('path', true);
       pathFrom.value = id;
       pathFrom.focus();
       say(`Path start set to ${node.name}.`);
@@ -97,6 +197,7 @@ export async function startViewer(): Promise<void> {
     const toHere = el('button', { className: 'map-btn', text: 'Path to here' });
     toHere.type = 'button';
     toHere.addEventListener('click', () => {
+      setPanel('path', true);
       pathTo.value = id;
       pathTo.focus();
       say(`Path end set to ${node.name}.`);
@@ -105,6 +206,7 @@ export async function startViewer(): Promise<void> {
     clear.type = 'button';
     clear.addEventListener('click', () => {
       select(null);
+      canvas.focus();
       say('Selection cleared.');
     });
     actions.append(fromHere, toHere, clear);
@@ -121,7 +223,7 @@ export async function startViewer(): Promise<void> {
       block.append(el('h4', { text: direction === 'outgoing' ? 'From this page' : 'To this page' }));
       for (const group of groups) {
         block.append(el('p', { className: 'mono connection-type', text: `${typeLabel(group.type, direction)} (${group.nodes.length})` }));
-        const list = el('ul', { className: 'connection-list' });
+        const items = el('ul', { className: 'connection-list' });
         for (const other of group.nodes) {
           const button = el('button', { className: 'link-button', text: other.name });
           button.type = 'button';
@@ -130,9 +232,9 @@ export async function startViewer(): Promise<void> {
             select(other.id);
             document.getElementById('selected-name')?.focus();
           });
-          list.append(el('li', {}, button));
+          items.append(el('li', {}, button));
         }
-        block.append(list);
+        block.append(items);
       }
       selectionBody.append(block);
     }
@@ -140,12 +242,16 @@ export async function startViewer(): Promise<void> {
 
   function select(id: string | null, options: { announce?: boolean; move?: boolean } = {}) {
     const { announce = true, move = true } = options;
+    // Choosing anything puts the headline away.
+    if (id) enterExploring();
     if (state.node) listButtons.get(state.node)?.removeAttribute('aria-current');
     state = { ...state, node: id };
     if (id) listButtons.get(id)?.setAttribute('aria-current', 'true');
     renderSelection(id);
-    renderer.setHighlight({ selected: id });
-    if (id && move) renderer.focusOn(id);
+    selectionPanel.hidden = !id;
+    r.setHighlight({ selected: id });
+    updateFreeArea({ animate: true });
+    if (id && move) r.focusOn(id);
     writeAddress();
     if (id && announce) {
       const node = graph.byId.get(id)!;
@@ -160,7 +266,7 @@ export async function startViewer(): Promise<void> {
     pathResult.replaceChildren();
     state = { ...state, from, to };
     if (!from || !to) {
-      renderer.setHighlight({ path: [], pathEdges: [] });
+      r.setHighlight({ path: [], pathEdges: [] });
       writeAddress();
       if (from || to) {
         pathResult.append(el('p', { text: 'Choose a page for both ends of the path.' }));
@@ -168,10 +274,12 @@ export async function startViewer(): Promise<void> {
       }
       return;
     }
+    enterExploring();
+    setPanel('path', true);
     const result: PathResult = shortestPath(graph, from, to);
     writeAddress();
     if (!result.nodes.length) {
-      renderer.setHighlight({ path: [], pathEdges: [] });
+      r.setHighlight({ path: [], pathEdges: [] });
       const message = `No path joins ${nameOf(from)} and ${nameOf(to)} on this map.`;
       pathResult.append(el('p', { className: 'path-none', text: message }));
       if (announce) say(message);
@@ -180,7 +288,7 @@ export async function startViewer(): Promise<void> {
     const steps = result.edges.length;
     const summary = steps === 0 ? `${nameOf(from)} is both ends of the path.` : `${steps} step${steps === 1 ? '' : 's'} from ${nameOf(from)} to ${nameOf(to)}.`;
     pathResult.append(el('p', { className: 'path-summary', text: summary }));
-    const list = el('ol', { className: 'path-steps' });
+    const items = el('ol', { className: 'path-steps' });
     result.nodes.forEach((id, i) => {
       const button = el('button', { className: 'link-button', text: nameOf(id) });
       button.type = 'button';
@@ -194,11 +302,12 @@ export async function startViewer(): Promise<void> {
         const relation = typeLabel(edge.type, forward ? 'incoming' : 'outgoing');
         item.append(el('span', { className: 'path-via', text: ` (${relation} ${nameOf(result.nodes[i - 1])})` }));
       }
-      list.append(item);
+      items.append(item);
     });
-    pathResult.append(list);
-    renderer.setHighlight({ path: result.nodes, pathEdges: result.edges });
-    renderer.focusOnAll(result.nodes);
+    pathResult.append(items);
+    r.setHighlight({ path: result.nodes, pathEdges: result.edges });
+    updateFreeArea();
+    r.focusOnAll(result.nodes);
     if (announce) say(`Path found. ${summary} ${result.nodes.map(nameOf).join(', then ')}.`);
   }
 
@@ -210,10 +319,10 @@ export async function startViewer(): Promise<void> {
     say('Path cleared.');
   });
 
-  // ---- view mode --------------------------------------------------------
+  // ---- view mode and camera ---------------------------------------------
   function setMode(mode: MapState['view']) {
     state = { ...state, view: mode };
-    renderer.setMode(mode);
+    r.setMode(mode);
     modeButton.setAttribute('aria-pressed', String(mode === '3d'));
     writeAddress();
   }
@@ -221,19 +330,28 @@ export async function startViewer(): Promise<void> {
     setMode(state.view === '3d' ? '2d' : '3d');
     say(state.view === '3d' ? '3D view. Drag to turn the map; hold shift and drag to move it.' : 'Flat view.');
   });
-  byId<HTMLButtonElement>('map-zoom-in').addEventListener('click', () => renderer.zoomBy(1.3));
-  byId<HTMLButtonElement>('map-zoom-out').addEventListener('click', () => renderer.zoomBy(1 / 1.3));
-  byId<HTMLButtonElement>('map-reset').addEventListener('click', () => renderer.fit());
+  byId<HTMLButtonElement>('map-zoom-in').addEventListener('click', () => r.zoomBy(1.3));
+  byId<HTMLButtonElement>('map-zoom-out').addEventListener('click', () => r.zoomBy(1 / 1.3));
+  byId<HTMLButtonElement>('map-reset').addEventListener('click', () => r.fit({ animate: !r.reducedMotion }));
+
+  // ---- the key's control: every "mentions" and "filed in" line, or only some
+  const allEdges = byId<HTMLButtonElement>('edges-all');
+  allEdges.addEventListener('click', () => {
+    const on = allEdges.getAttribute('aria-pressed') !== 'true';
+    allEdges.setAttribute('aria-pressed', String(on));
+    r.setHighlight({ showAll: on });
+    say(on ? 'All “mentions” and “filed in” lines shown.' : '“Mentions” and “filed in” lines hidden until you point at a page or choose one.');
+  });
 
   // ---- the list ---------------------------------------------------------
   for (const [id, button] of listButtons) button.addEventListener('click', () => select(id));
-  const search = byId<HTMLInputElement>('map-search');
   const count = byId<HTMLElement>('list-count');
+  const countText = count.textContent ?? '';
   let searchTimer = 0;
   search.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase();
-    let shown = 0;
-    for (const group of document.querySelectorAll<HTMLElement>('#node-list .list-group')) {
+    let found = 0;
+    for (const group of list.querySelectorAll<HTMLElement>('.list-group')) {
       let inGroup = 0;
       for (const button of group.querySelectorAll<HTMLButtonElement>('button[data-id]')) {
         const match = !q || button.textContent!.toLowerCase().includes(q) || button.dataset.id!.toLowerCase().includes(q);
@@ -241,9 +359,9 @@ export async function startViewer(): Promise<void> {
         if (match) inGroup++;
       }
       group.hidden = inGroup === 0;
-      shown += inGroup;
+      found += inGroup;
     }
-    const text = q ? `${shown} of ${graph.nodes.length} pages match` : `${graph.nodes.length} pages`;
+    const text = q ? `${found} of ${graph.nodes.length} pages match` : countText;
     count.textContent = text;
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => say(text), 400);
@@ -271,11 +389,11 @@ export async function startViewer(): Promise<void> {
     const p = local(ev);
     const last = pointers.get(ev.pointerId);
     if (!last) {
-      const over = renderer.nodeAt(p.x, p.y);
+      const over = r.nodeAt(p.x, p.y);
       if (over !== hovered) {
         hovered = over;
         canvas.classList.toggle('is-pointing', over !== null);
-        renderer.setHighlight({ hovered: over });
+        r.setHighlight({ hovered: over });
       }
       return;
     }
@@ -283,7 +401,7 @@ export async function startViewer(): Promise<void> {
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch > 0) renderer.zoomBy(d / pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      if (pinch > 0) r.zoomBy(d / pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
       pinch = d;
       dragged = true;
       return;
@@ -291,15 +409,15 @@ export async function startViewer(): Promise<void> {
     const dx = p.x - last.x;
     const dy = p.y - last.y;
     if (Math.abs(dx) + Math.abs(dy) > 2) dragged = true;
-    if (state.view === '3d' && !ev.shiftKey) renderer.turnBy(dx, dy);
-    else renderer.panBy(dx, dy);
+    if (state.view === '3d' && !ev.shiftKey) r.turnBy(dx, dy);
+    else r.panBy(dx, dy);
   });
   const release = (ev: PointerEvent) => {
     const had = pointers.delete(ev.pointerId);
     if (pointers.size < 2) pinch = 0;
     if (had && !dragged && pointers.size === 0 && ev.type === 'pointerup') {
       const p = local(ev);
-      const id = renderer.nodeAt(p.x, p.y);
+      const id = r.nodeAt(p.x, p.y);
       select(id, { move: false });
     }
   };
@@ -309,14 +427,14 @@ export async function startViewer(): Promise<void> {
     if (hovered === null) return;
     hovered = null;
     canvas.classList.remove('is-pointing');
-    renderer.setHighlight({ hovered: null });
+    r.setHighlight({ hovered: null });
   });
   canvas.addEventListener(
     'wheel',
     (ev) => {
       ev.preventDefault();
       const p = local(ev);
-      renderer.zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y);
+      r.zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y);
     },
     { passive: false },
   );
@@ -325,14 +443,14 @@ export async function startViewer(): Promise<void> {
     const step = 60;
     const turn = state.view === '3d' && !ev.shiftKey;
     const keys: Record<string, () => void> = {
-      ArrowLeft: () => (turn ? renderer.turnBy(-step / 2, 0) : renderer.panBy(step, 0)),
-      ArrowRight: () => (turn ? renderer.turnBy(step / 2, 0) : renderer.panBy(-step, 0)),
-      ArrowUp: () => (turn ? renderer.turnBy(0, -step / 2) : renderer.panBy(0, step)),
-      ArrowDown: () => (turn ? renderer.turnBy(0, step / 2) : renderer.panBy(0, -step)),
-      '+': () => renderer.zoomBy(1.3),
-      '=': () => renderer.zoomBy(1.3),
-      '-': () => renderer.zoomBy(1 / 1.3),
-      '0': () => renderer.fit(),
+      ArrowLeft: () => (turn ? r.turnBy(-step / 2, 0) : r.panBy(step, 0)),
+      ArrowRight: () => (turn ? r.turnBy(step / 2, 0) : r.panBy(-step, 0)),
+      ArrowUp: () => (turn ? r.turnBy(0, -step / 2) : r.panBy(0, step)),
+      ArrowDown: () => (turn ? r.turnBy(0, step / 2) : r.panBy(0, -step)),
+      '+': () => r.zoomBy(1.3),
+      '=': () => r.zoomBy(1.3),
+      '-': () => r.zoomBy(1 / 1.3),
+      '0': () => r.fit(),
       Escape: () => {
         if (state.node) {
           select(null);
@@ -346,18 +464,26 @@ export async function startViewer(): Promise<void> {
       action();
     }
   });
-  new ResizeObserver(() => renderer.resize()).observe(canvas);
+
+  // The window or a panel changing size changes the free area.
+  const resized = new ResizeObserver((entries) => {
+    if (entries.some((e) => e.target === canvas)) r.resize();
+    updateFreeArea();
+  });
+  for (const node of [canvas, lead, list, tools, stack]) if (node) resized.observe(node);
 
   // ---- restore from the address -----------------------------------------
   const restored = queryToState(window.location.search, (id) => graph.byId.has(id));
+  if (restored.node || restored.from || restored.to) enterExploring();
   if (restored.view === '3d') setMode('3d');
   if (restored.from) pathFrom.value = restored.from;
   if (restored.to) pathTo.value = restored.to;
+  updateFreeArea();
   select(restored.node, { announce: false });
   if (restored.from && restored.to) showPath(restored.from, restored.to, { announce: false });
   else state = { ...state, from: restored.from, to: restored.to };
   writeAddress();
 
-  renderer.draw();
+  r.draw();
   canvas.dataset.ready = 'true';
 }

@@ -19,9 +19,10 @@ export const PALETTE = {
   clay: '#a35c17',
   signal: '#e2611c',
   rust: '#8a2b0a',
-  /** A tint for the region behind each layer. */
-  regionDefence: '#ebeadf',
-  regionBusiness: '#ffffff',
+  /** Quiet tints for the region behind each layer, a step off the paper. */
+  regionDefence: '#eeede5',
+  regionBusiness: '#fcfbf8',
+  regionEdge: '#e2e1d7',
 } as const;
 
 /** The canvas font. Literal, because a canvas font string ignores var(). */
@@ -88,3 +89,34 @@ export const PATH_STYLE: EdgeStyle = { colour: PALETTE.signal, width: 4, dash: [
 export function nodeRadius(degree: number): number {
   return 5 + Math.min(Math.sqrt(degree) * 2.4, 19);
 }
+
+/**
+ * A mark's radius on screen at a zoom. Marks shrink more slowly than the map
+ * when it is zoomed out, so the whole map stays legible at the size it is
+ * fitted to, and never fall below a size that can be seen and pointed at.
+ */
+export function screenRadius(radius: number, zoom: number): number {
+  return Math.max(radius * Math.pow(zoom, 0.6), 2.5);
+}
+
+/** Labels: the text, its paper halo and when a mark earns one. */
+export const LABEL_STYLE = {
+  size: 12,
+  weight: 600,
+  strongSize: 13,
+  strongWeight: 700,
+  colour: PALETTE.ink,
+  halo: PALETTE.paper,
+  haloWidth: 4,
+  /** A mark at least this many screen pixels across its radius is offered a label. */
+  minRadius: 6,
+  /** Longest label before it is cut short with an ellipsis. */
+  maxChars: 34,
+} as const;
+
+/** The titles over the two layers' regions. */
+export const LAYER_TITLE_STYLE = {
+  font: '500 11px "Roboto Mono", ui-monospace, Menlo, monospace',
+  colour: PALETTE.ink2,
+  letterSpacing: '1.1px',
+} as const;

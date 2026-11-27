@@ -1,0 +1,246 @@
+---
+// The map, as one component for two addresses. On the home page it opens in
+// the landing state: the headline over the map, the drawing fitted into the
+// space the headline leaves. On /map/ it opens in the exploring state. The
+// bundled viewer script moves from one to the other.
+//
+// Everything here is ordinary HTML rendered at build time from the map file,
+// so without script the headline, the facts and the list of every page still
+// read. Controls that only work with script are hidden when script is off
+// (see explorer.css), and panels that open and close start closed.
+import '../styles/explorer.css';
+import { facts, loadMap } from '../lib/map';
+import { buildGraph, groupByKind, kindLabel, layerLabel } from '../lib/graph/model';
+import { edgeStyle, kindStyle, PALETTE, PATH_STYLE } from '../lib/graph/style';
+import { typeLabel } from '../lib/graph/connections';
+import { isQuietType } from '../lib/graph/edge-filter';
+
+interface Props {
+  /** Open in the landing state, with the headline over the map. */
+  landing?: boolean;
+}
+const { landing = false } = Astro.props;
+
+const map = loadMap();
+const graph = buildGraph(map);
+const groups = groupByKind(graph);
+const summary = facts(map);
+const strip = [
+  { label: 'Defence pages', value: summary.defencePages.toLocaleString('en-GB') },
+  { label: 'Skills', value: summary.skills.toLocaleString('en-GB') },
+  { label: 'Folders', value: summary.folders.toLocaleString('en-GB') },
+  { label: 'Job routes', value: summary.routes.toLocaleString('en-GB') },
+  { label: 'Pack version', value: summary.packVersion },
+];
+const edgeTypes = [...new Set(graph.edges.map((e) => e.type))].sort();
+const kindsByLayer = (['defence', 'business'] as const).map((layer) => ({
+  layer,
+  groups: groups.filter((g) => g.layer === layer),
+}));
+
+// SVG marks for the key, drawn from the same values as the canvas.
+const mark = (kind: string, layer: 'defence' | 'business') => {
+  const { colour, shape } = kindStyle(kind, layer);
+  const fill = layer === 'defence' ? colour : PALETTE.white;
+  const stroke = layer === 'defence' ? PALETTE.white : colour;
+  return { colour, shape, fill, stroke };
+};
+const dash = (d: number[]) => (d.length ? d.join(' ') : undefined);
+const tools = [
+  { id: 'key', label: 'Key', panel: 'map-key' },
+  { id: 'path', label: 'Find a path', panel: 'path' },
+  { id: 'help', label: 'How to use the map', panel: 'map-howto' },
+];
+---
+<div class="explorer" id="explorer" data-state={landing ? 'landing' : 'exploring'}>
+  {landing ? (
+    <div class="lead" id="lead">
+      <p class="mono kicker"><span>Free to use ·</span> <span>public sources ·</span> <span>no sign-up</span></p>
+      <h1 class="display">A defence business, ready to run<span class="stop">.</span></h1>
+      <p class="lead-purpose">
+        Foothold gives a small UK defence business its folders, the AI skills that do the jobs, and a map of the organisations it will deal with. Look around it here, then download it and point your AI tool at it.
+      </p>
+      <div class="lead-actions">
+        <button type="button" class="btn btn-primary needs-script" id="explore">Explore the map</button>
+        <a class="btn btn-secondary" href="https://github.com/MilUX-Ltd/foothold">Get the pack on GitHub</a>
+      </div>
+      <dl class="facts" aria-label="What is in the pack">
+        {strip.map((fact) => <div><dt class="mono">{fact.label}</dt><dd>{fact.value}</dd></div>)}
+      </dl>
+    </div>
+  ) : (
+    <h1 class="vh">The Foothold pack as one map</h1>
+  )}
+  {landing && <div class="fade" aria-hidden="true"></div>}
+
+  <div class="map-stage">
+    <canvas
+      id="map-canvas"
+      class="map-canvas"
+      tabindex="0"
+      role="img"
+      aria-label="A drawing of every page in the pack and how they join. The list of every page on the map holds the same pages."
+      aria-describedby="map-help"
+      data-ready="false"
+      data-frames="0"
+    ></canvas>
+    <p class="map-waiting" id="map-waiting">
+      <span class="without-script">The drawing needs script. Every page on it is in the list of every page on the map.</span>
+      <span class="with-script" id="map-waiting-text">Drawing the map.</span>
+    </p>
+  </div>
+
+  <div class="map-dock needs-script">
+    <div class="map-tools" role="group" aria-label="Map controls">
+      <div class="tool-group">
+        <button type="button" class="map-btn map-btn-square" id="map-zoom-in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>
+        <button type="button" class="map-btn map-btn-square" id="map-zoom-out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>
+        <button type="button" class="map-btn" id="map-reset">Reset view</button>
+        <button type="button" class="map-btn" id="map-mode" aria-pressed="false">3D view</button>
+      </div>
+      <div class="tool-group">
+        {tools.map((t) => (
+          <button type="button" class="map-btn panel-toggle" id={`toggle-${t.id}`} aria-expanded="false" aria-controls={t.panel} data-panel={t.panel}>{t.label}</button>
+        ))}
+      </div>
+    </div>
+
+    <div class="map-stack">
+      <section class="panel" id="selection" aria-labelledby="selection-heading" hidden>
+        <div class="panel-head">
+          <h2 id="selection-heading">Selected page</h2>
+        </div>
+        <div class="panel-body" id="selection-body">
+          <p class="map-empty">Nothing is selected. Choose a page on the map or in the list.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="path" aria-labelledby="path-heading" hidden>
+        <div class="panel-head">
+          <h2 id="path-heading">Find a path</h2>
+          <button type="button" class="panel-close" data-close="path" aria-label="Close Find a path"><span aria-hidden="true">×</span></button>
+        </div>
+        <div class="panel-body">
+          <p class="map-note">The shortest way between two pages, following connections in either direction.</p>
+          {(['from', 'to'] as const).map((end) => (
+            <div class="field">
+              <label for={`path-${end}`}>{end === 'from' ? 'From' : 'To'}</label>
+              <select id={`path-${end}`} class="select">
+                <option value="">Choose a page</option>
+                {groups.map((g) => (
+                  <optgroup label={kindLabel(g.kind)}>
+                    {g.nodes.map((node) => <option value={node.id}>{node.name}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          ))}
+          <div class="path-actions">
+            <button type="button" class="map-btn map-btn-primary" id="path-go">Find the path</button>
+            <button type="button" class="map-btn" id="path-clear">Clear the path</button>
+          </div>
+          <div id="path-result" class="path-result"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="map-key" aria-labelledby="key-heading" hidden>
+        <div class="panel-head">
+          <h2 id="key-heading">Key</h2>
+          <button type="button" class="panel-close" data-close="map-key" aria-label="Close the key"><span aria-hidden="true">×</span></button>
+        </div>
+        <div class="panel-body key-body">
+          {kindsByLayer.map(({ layer, groups: layerGroups }) => (
+            <div class="key-block">
+              <h3 class="key-title">{layerLabel(layer)}<span>{layer === 'defence' ? 'filled marks' : 'outlined marks'}</span></h3>
+              <ul class="legend-list">
+                {layerGroups.map((g) => {
+                  const m = mark(g.kind, g.layer);
+                  return (
+                    <li>
+                      <svg class="legend-mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                        {m.shape === 'circle' && <circle cx="8" cy="8" r="6" fill={m.fill} stroke={m.stroke} stroke-width="1" />}
+                        {m.shape === 'square' && <rect x="2.5" y="2.5" width="11" height="11" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                        {m.shape === 'diamond' && <polygon points="8,1.5 14.5,8 8,14.5 1.5,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                        {m.shape === 'triangle' && <polygon points="8,2 14.5,14 1.5,14" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                        {m.shape === 'hexagon' && <polygon points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" fill={m.fill} stroke={m.stroke} stroke-width="2" />}
+                      </svg>
+                      {kindLabel(g.kind)} <span class="legend-count">{g.nodes.length}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          <div class="key-block">
+            <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
+            <ul class="legend-list">
+              {edgeTypes.map((type) => {
+                const s = edgeStyle(type);
+                return (
+                  <li>
+                    <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
+                      <line x1="1" y1="5" x2="35" y2="5" stroke={s.colour} stroke-width={Math.max(s.width, 1.2)} stroke-dasharray={dash(s.dash)} />
+                    </svg>
+                    {typeLabel(type, 'outgoing')}{isQuietType(type) && <span aria-hidden="true" class="legend-star">*</span>}
+                  </li>
+                );
+              })}
+              <li class="legend-wide">
+                <svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true">
+                  <line x1="1" y1="5" x2="35" y2="5" stroke={PATH_STYLE.colour} stroke-width={PATH_STYLE.width} />
+                </svg>
+                a path you asked for
+              </li>
+            </ul>
+            <p class="key-note"><span aria-hidden="true" class="legend-star">*</span> “Mentions” and “filed in” lines are many, so they are hidden until you point at a page or choose one.</p>
+            <button type="button" class="map-btn key-toggle" id="edges-all" aria-pressed="false">Show all “mentions” and “filed in” lines</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="map-howto" aria-labelledby="howto-heading" hidden>
+        <div class="panel-head">
+          <h2 id="howto-heading">How to use the map</h2>
+          <button type="button" class="panel-close" data-close="map-howto" aria-label="Close How to use the map"><span aria-hidden="true">×</span></button>
+        </div>
+        <div class="panel-body">
+          <p class="map-help" id="map-help">
+            Drag to move and scroll to zoom, or use the buttons. Choose a point to select it and list its connections. With the map focused, the arrow keys move it, plus and minus zoom, 0 fits the whole map and Escape clears the selection. In the 3D view, dragging turns the map; hold shift to move it.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel node-list" id="node-list" aria-labelledby="list-heading">
+    <div class="panel-head">
+      <h2 id="list-heading" data-toggles="list-body">Every page on the map</h2>
+    </div>
+    <div class="panel-body list-body" id="list-body">
+      <div class="field">
+        <label for="map-search">Find a page on the map</label>
+        <input type="search" id="map-search" class="input" autocomplete="off" spellcheck="false" />
+      </div>
+      <p class="mono list-count" id="list-count">{graph.nodes.length} pages, grouped by kind</p>
+      <div class="list-groups">
+        {groups.map((g) => (
+          <div class="list-group" data-kind={g.kind}>
+            <h3>{kindLabel(g.kind)} <span class="legend-count">{g.nodes.length}</span> <span class="mono list-layer">{layerLabel(g.layer)}</span></h3>
+            <ul>
+              {g.nodes.map((node) => (
+                <li><button type="button" class="node-button" data-id={node.id}>{node.name}</button></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <p id="map-status" class="vh" role="status" aria-live="polite"></p>
+</div>
+
+<script>
+  import { startViewer } from '../scripts/map/viewer';
+  startViewer();
+</script>

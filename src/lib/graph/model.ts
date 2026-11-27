@@ -138,5 +138,5 @@ export function kindName(kind: string): string {
 
 /** A plain label for a layer. */
 export function layerLabel(layer: Layer): string {
-  return layer === 'defence' ? 'Defence reference' : 'Business structure';
+  return layer === 'defence' ? 'Defence reference' : 'Your business structure';
 }

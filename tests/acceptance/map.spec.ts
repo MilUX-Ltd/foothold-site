@@ -72,8 +72,10 @@ test.describe('the map page', () => {
 
   test('10. a path between two nodes is listed in text, and the page says when there is none', async ({ page }) => {
     await openMap(page);
+    // The path finder is a panel over the map that opens from the map's controls.
+    await page.getByRole('button', { name: 'Find a path', exact: true }).click();
     await page.getByLabel('From').selectOption(FRAMEWORK);
-    await page.getByLabel('To').selectOption(CLUSTER);
+    await page.getByLabel('To', { exact: true }).selectOption(CLUSTER);
     await page.getByRole('button', { name: 'Find the path' }).focus();
     await page.keyboard.press('Enter');
     const result = page.getByRole('region', { name: 'Path' });
@@ -82,7 +84,7 @@ test.describe('the map page', () => {
     await expect.poll(() => [stateParam(page, 'from'), stateParam(page, 'to')]).toEqual([FRAMEWORK, CLUSTER]);
     await expect(page.getByRole('status')).toContainText('3 steps');
 
-    await page.getByLabel('To').selectOption(VAULT);
+    await page.getByLabel('To', { exact: true }).selectOption(VAULT);
     await page.getByRole('button', { name: 'Find the path' }).click();
     await expect(result).toContainText('No path joins Example Supplier Framework and The whole vault');
     await expect(result.locator('ol > li')).toHaveCount(0);

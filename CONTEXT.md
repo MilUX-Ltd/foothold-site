@@ -19,6 +19,7 @@
 - **Edge origin**: where the author wrote the edge: `field` (a frontmatter field), `path` (where the page sits), `body` (a link in the text), `skill` (a skill's declarations), `folder` (a folder's own record) or `route` (a route's steps).
 - **Route**: a job that takes more than one skill, as an ordered list of steps. Routes are data in the pack; the site only draws them.
 - **Step**: one entry in a route: the skill to use (`skill`, with `skill_id` pointing at its node) and a sentence saying what it does (`does`).
+- **Landing and exploring**: the two states of the map. The home page opens in the landing state, with the headline over the map; `/map/` opens in the exploring state, with the list and the panels over the map. One component serves both.
 - **Map page**: `/map/`, the pack drawn as one map with two regions, the defence layer on the left and the business layer on the right, joined by the edges that cross between them (pages filed in folders). The same nodes are listed in text on the page, grouped by kind, so the map is never the only way in.
 - **Layout**: the position of every node on the map, settled at build time by a seeded force simulation (`src/lib/graph/layout.ts`) and shipped in `/map/graph.json`. The same map file gives the same positions on every build.
 - **Path**: the shortest chain of edges between two chosen nodes, following edges in either direction. Not to be confused with a node's `path` field (where the page sits in the pack) or a **route** (a job the pack defines).

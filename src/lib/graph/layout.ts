@@ -34,7 +34,7 @@ export interface LayoutOptions {
 
 const MARGIN = 60;
 /** Half the gap between the two layers' regions, in simulation units. */
-const WALL = 70;
+const WALL = 36;
 const SEED = 20261127;
 
 /** Park and Miller's minimal standard generator: small, seeded, the same everywhere. */
@@ -54,9 +54,11 @@ export function computeLayout(graph: Graph, options: LayoutOptions = {}): Layout
   // sized by how many nodes it holds.
   const layerCount = LAYERS.map((layer) => nodes.filter((node) => node.layer === layer).length);
   const layerRadius = layerCount.map((c) => 60 + Math.sqrt(c) * 34);
+  // The two regions sit close, so the joining lines are short and the whole
+  // map fills more of the window it is fitted to.
   const layerCentre = [
-    { x: -layerRadius[0] - 140, y: 0 },
-    { x: layerRadius[1] + 140, y: 0 },
+    { x: -layerRadius[0] * 0.72, y: 0 },
+    { x: layerRadius[1] * 0.72, y: 0 },
   ];
   const homeX = new Float64Array(n);
   const homeY = new Float64Array(n);
@@ -101,7 +103,7 @@ export function computeLayout(graph: Graph, options: LayoutOptions = {}): Layout
     const cross = nodes[a].layer !== nodes[b].layer;
     ea.push(a);
     eb.push(b);
-    rest.push((cross ? 220 : 70) + (radius[a] + radius[b]) * 2);
+    rest.push((cross ? 160 : 70) + (radius[a] + radius[b]) * 2);
     strength.push(cross ? 0.0012 : 0.0135);
   }
 
