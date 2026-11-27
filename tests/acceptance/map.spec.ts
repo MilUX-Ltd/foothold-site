@@ -62,9 +62,9 @@ test.describe('the map page', () => {
     const panel = page.getByRole('region', { name: 'Selected page' });
     await expect(panel.getByRole('heading', { name: 'Example Supplier Framework' })).toBeVisible();
     const outgoing = panel.locator('[data-direction="outgoing"]');
-    await expect(outgoing).toContainText('customer');
+    await expect(outgoing).toContainText('the work is for');
     await expect(outgoing).toContainText('Ministry of Defence');
-    await expect(outgoing).toContainText('operator');
+    await expect(outgoing).toContainText('run by');
     await expect(outgoing).toContainText('Defence Science and Technology Laboratory');
     await expect(panel.locator('[data-direction="incoming"]')).toContainText('Example Innovation Programme');
     await expect.poll(() => stateParam(page, 'node')).toBe(FRAMEWORK);

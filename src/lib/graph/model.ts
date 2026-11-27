@@ -125,7 +125,7 @@ export function kindLabel(kind: string): string {
     folder: 'Folders',
     skill: 'Skills',
     route: 'Jobs',
-    vault: 'The vault',
+    vault: 'The whole vault',
   };
   return known[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1).replace(/-/g, ' ');
 }

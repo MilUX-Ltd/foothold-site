@@ -147,7 +147,7 @@ export interface SkillGroup {
 
 const SKILL_GROUPS: Record<string, SkillGroup> = {
   'business-skills': { key: 'business-skills', label: 'Business skills', order: 0 },
-  'crm-skills': { key: 'crm-skills', label: 'Contacts skills', order: 1 },
+  'crm-skills': { key: 'crm-skills', label: 'Contact skills', order: 1 },
   'ops-skills': { key: 'ops-skills', label: 'Operations skills', order: 2 },
   'content-skills': { key: 'content-skills', label: 'Content skills', order: 3 },
   'brand-skills': { key: 'brand-skills', label: 'Brand skills', order: 4 },

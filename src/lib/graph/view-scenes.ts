@@ -342,21 +342,21 @@ export function buyersScene(graph: Graph): SceneEl {
       { class: 'view-head' },
       h('p', { class: 'mono kicker' }, 'Defence reference'),
       h('h2', { class: 'view-title' }, 'Who buys, and how you reach them', h('span', { class: 'stop' }, '.')),
-      h('p', { class: 'view-sub' }, `${L.leftOut.toLocaleString('en-GB')} defence pages have none of these connections yet, so they are not drawn here. `, h('a', { href: '#node-list', class: 'list-link' }, 'Find them in the list of every page.')),
+      h('p', { class: 'view-sub' }, L.leftOut === 1 ? '1 defence page has none of these connections yet, so it is not drawn here. ' : `${L.leftOut.toLocaleString('en-GB')} defence pages have none of these connections yet, so they are not drawn here. `, h('a', { href: '#node-list', class: 'list-link' }, L.leftOut === 1 ? 'Find it in the list of every page.' : 'Find them in the list of every page.')),
     ),
     inlineKey(RELATION_TYPES_FOR_KEY.map((type) => ({ type, words: RELATION_WORDS[type] }))),
     h(
       'svg',
-      { class: 'view-svg bv', xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${L.width} ${L.height}`, role: 'group', 'aria-label': 'Who buys: programmes on the left, the bodies the work is for or that run it in the middle, frameworks and portals on the right.' },
+      { class: 'view-svg bv', xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${L.width} ${L.height}`, role: 'group', 'aria-label': 'Who buys: programmes on the left, the bodies the work is for or that run it in the middle, frameworks, portals and events on the right.' },
       head(`Programmes · ${L.left.length}`, L.columns.left, 'end'),
       head(`Who the work is for, and who runs it · ${L.middle.length}`, (L.columns.middleLeft + L.columns.middleRight) / 2, 'middle'),
-      head(`Frameworks and portals · ${L.right.length}`, L.columns.right, 'start'),
+      head(`Frameworks, portals and events · ${L.right.length}`, L.columns.right, 'start'),
       h('g', { class: 'lines' }, L.links.map((l) => h('path', { class: cls('ln', `t-${l.type}`), 'data-from': l.from, 'data-to': l.to, d: l.d }))),
       h('g', { class: 'bv-left' }, side(L.left, 'end')),
       h('g', { class: 'bv-middle' }, middle),
       h('g', { class: 'bv-right' }, side(L.right, 'start')),
     ),
-    h('div', { class: 'view-list bv-list' }, listOf(L.left, 'Programmes'), listOf(L.right, 'Frameworks and portals')),
+    h('div', { class: 'view-list bv-list' }, listOf(L.left, 'Programmes'), listOf(L.right, 'Frameworks, portals and events')),
   );
 }
 
@@ -446,7 +446,7 @@ export function jobsScene(graph: Graph, routes: readonly RouteInput[]): SceneEl 
                       return h(
                         'li',
                         {},
-                        h('span', { class: 'vl-rel' }, swatch(l.type), l.type),
+                        h('span', { class: 'vl-rel' }, swatch(l.type), l.type === 'writes' ? 'writes to' : l.type),
                         ' ',
                         h('button', { type: 'button', class: 'vl-btn', 'data-id': f.id }, f.label),
                         f.count ? h('span', { class: 'jv-count' }, ` ${pagesLabel(f.count)}: ${f.breakdown}`) : null,
@@ -466,7 +466,7 @@ export function jobsScene(graph: Graph, routes: readonly RouteInput[]): SceneEl 
     h('header', { class: 'view-head' }, h('p', { class: 'mono kicker' }, 'Your business structure'), h('h2', { class: 'view-title' }, 'How a job runs', h('span', { class: 'stop' }, '.'))),
     inlineKey([
       { type: 'reads', words: 'reads' },
-      { type: 'writes', words: 'writes' },
+      { type: 'writes', words: 'writes to' },
       { type: 'step', words: 'a step in the job' },
     ]),
     h(
@@ -549,7 +549,7 @@ export function glanceScene(graph: Graph): SceneEl {
     return h(
       'section',
       { class: `gl-side gl-side-${side}` },
-      h('h3', { class: 'gl-side-head' }, h('span', { class: 'mono gl-side-name' }, title), ' ', h('span', { class: 'gl-big' }, total.toLocaleString('en-GB')), ' ', h('span', { class: 'gl-big-unit' }, 'pages')),
+      h('h3', { class: 'gl-side-head' }, h('span', { class: 'mono gl-side-name' }, title), ' ', h('span', { class: 'gl-big' }, total.toLocaleString('en-GB')), ' ', h('span', { class: 'gl-big-unit' }, total === 1 ? 'page' : 'pages')),
       // The side's shading as one bar: how much of it is joined up.
       total
         ? h(
@@ -563,7 +563,7 @@ export function glanceScene(graph: Graph): SceneEl {
       h(
         'p',
         { class: 'gl-summary' },
-        [2, 1, 0].map((s) => h('span', { class: 'gl-sum' }, shadeSwatch(s as Shade), h('strong', {}, shades[s].toLocaleString('en-GB')), ` ${SHADE_WORDS[s]}`)),
+        [2, 1, 0].map((s) => h('span', { class: 'gl-sum' }, shadeSwatch(s as Shade), h('strong', {}, shades[s].toLocaleString('en-GB')), ` with ${SHADE_WORDS[s]}`)),
       ),
       h('div', { class: 'gl-groups' }, groups.map(group)),
     );

@@ -227,7 +227,9 @@ export async function startViewer(): Promise<void> {
     if (!response.ok) throw new Error(`The map data answered ${response.status}`);
     ({ graph, layout } = readPayload(await response.json()));
   } catch (error) {
-    waitingText.textContent = `The drawing could not start (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`;
+    // The cause is for whoever is fixing it, not the visitor.
+    console.error(error);
+    waitingText.textContent = 'The drawing could not start. Every page is still in the list of every page on the map.';
     explorer.dataset.ready = 'true';
     return;
   }
@@ -307,7 +309,7 @@ export async function startViewer(): Promise<void> {
       setPanel('path', true);
       pathFrom.value = id;
       pathFrom.focus();
-      say(`Path start set to ${node.name}.`);
+      say(`Path starts at ${node.name}.`);
     });
     const toHere = el('button', { className: 'map-btn', text: 'Path to here' });
     toHere.type = 'button';
@@ -315,7 +317,7 @@ export async function startViewer(): Promise<void> {
       setPanel('path', true);
       pathTo.value = id;
       pathTo.focus();
-      say(`Path end set to ${node.name}.`);
+      say(`Path ends at ${node.name}.`);
     });
     const clear = el('button', { className: 'map-btn', text: 'Clear selection' });
     clear.type = 'button';
@@ -502,7 +504,7 @@ export async function startViewer(): Promise<void> {
     const on = allEdges.getAttribute('aria-pressed') !== 'true';
     allEdges.setAttribute('aria-pressed', String(on));
     renderer?.setHighlight({ showAll: on });
-    say(on ? 'All “mentions” and “filed in” lines shown.' : '“Mentions” and “filed in” lines hidden until you point at a page or choose one.');
+    say(on ? 'All “mentions” and “filed in” connections shown.' : '“Mentions” and “filed in” connections hidden until you point at a page or choose one.');
   });
 
   // ---- the list ---------------------------------------------------------
@@ -1011,7 +1013,8 @@ export async function startViewer(): Promise<void> {
         await drawings.ensure(next);
       } catch (error) {
         if (ticket !== switching) return;
-        say(`That view could not be drawn (${error instanceof Error ? error.message : 'unknown error'}). Every page is still in the list of every page on the map.`);
+        console.error(error);
+        say('That view could not be drawn. Every page is still in the list of every page on the map.');
         explorer.dataset.ready = 'true';
         return;
       }

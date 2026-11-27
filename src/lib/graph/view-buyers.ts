@@ -181,7 +181,7 @@ export function buyersLayout(graph: Graph): BuyersLayout {
   const headingY = 24;
   addText(`Programmes · ${leftRows.length}`.toUpperCase(), PX, headingY, BUYERS_STYLE.heading, 'end');
   addText(`Who the work is for, and who runs it · ${middleRows.length}`.toUpperCase(), (OL + OR) / 2, headingY, BUYERS_STYLE.heading, 'middle');
-  addText(`Frameworks and portals · ${rightRows.length}`.toUpperCase(), FX, headingY, BUYERS_STYLE.heading, 'start');
+  addText(`Frameworks, portals and events · ${rightRows.length}`.toUpperCase(), FX, headingY, BUYERS_STYLE.heading, 'start');
 
   const shown = new Set(at.keys());
   const leftOut = graph.nodes.filter((n) => n.layer === 'defence' && !shown.has(n.id)).length;

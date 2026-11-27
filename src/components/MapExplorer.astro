@@ -234,7 +234,7 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
       <section class="panel" id="map-key" aria-labelledby="key-heading" hidden>
         <div class="panel-head">
           <h2 id="key-heading">Key</h2>
-          <button type="button" class="panel-close" data-close="map-key" aria-label="Close the key"><span aria-hidden="true">×</span></button>
+          <button type="button" class="panel-close" data-close="map-key" aria-label="Close Key"><span aria-hidden="true">×</span></button>
         </div>
         <div class="panel-body key-body">
           {/* The whole map */}
@@ -284,7 +284,7 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
                 <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-framework"><circle class="sh" r="5" /></g></svg>Frameworks</li>
                 <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-portal"><rect class="sh" x="-4.5" y="-4.5" width="9" height="9" /></g></svg>Portals</li>
                 <li><svg class="legend-mark" width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true"><g class="bv-row k-event-series"><polygon class="sh" points="-5.5,4.1 0,-5.2 5.5,4.1" /></g></svg>Event series</li>
-                <li class="legend-wide"><svg class="legend-mark" width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><g class="bv-body"><rect class="box" x="1" y="2" width="20" height="12" /><rect class="bar" x="1" y="2" width="4" height="12" /></g></svg>A body the work is for or that runs it, with its count of lines</li>
+                <li class="legend-wide"><svg class="legend-mark" width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><g class="bv-body"><rect class="box" x="1" y="2" width="20" height="12" /><rect class="bar" x="1" y="2" width="4" height="12" /></g></svg>A body the work is for or that runs it, with its count of connections</li>
               </ul>
             </div>
           </div>
@@ -293,7 +293,7 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
             <div class="key-block">
               <h3 class="key-title">Connections<span>line pattern and weight</span></h3>
               <ul class="legend-list legend-one">
-                {[['reads', 'reads'], ['writes', 'writes'], ['step', 'a step in the job']].map(([type, words]) => (
+                {[['reads', 'reads'], ['writes', 'writes to'], ['step', 'a step in the job']].map(([type, words]) => (
                   <li><svg class="legend-line" width="36" height="10" viewBox="0 0 36 10" aria-hidden="true"><path class={`ln t-${type}`} d="M1,5 H35" /></svg>{words}</li>
                 ))}
               </ul>
@@ -323,7 +323,7 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
                 <li><svg class="legend-mark gl-tile sh-2 k-organisation" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><rect class="sh" x="1" y="1" width="16" height="16" /></svg>A defence page or a folder</li>
                 <li><svg class="legend-mark gl-tile sh-2 k-skill" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="9,0.8 17.2,9 9,17.2 0.8,9" /></svg>Skills</li>
                 <li><svg class="legend-mark gl-tile sh-2 k-route" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="1,16.5 9,1.5 17,16.5" /></svg>Jobs</li>
-                <li><svg class="legend-mark gl-tile sh-0 k-vault" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="17.2,9 13.1,16.1 4.9,16.1 0.8,9 4.9,1.9 13.1,1.9" /></svg>The vault</li>
+                <li><svg class="legend-mark gl-tile sh-0 k-vault" width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><polygon class="sh" points="17.2,9 13.1,16.1 4.9,16.1 0.8,9 4.9,1.9 13.1,1.9" /></svg>The whole vault</li>
               </ul>
             </div>
           </div>
@@ -372,8 +372,8 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
                   a path you asked for
                 </li>
               </ul>
-              <p class="key-note"><span aria-hidden="true" class="legend-star">*</span> “Mentions” and “filed in” lines are many, so they are hidden until you point at a page or choose one.</p>
-              <button type="button" class="map-btn key-toggle" id="edges-all" aria-pressed="false">Show all “mentions” and “filed in” lines</button>
+              <p class="key-note"><span aria-hidden="true" class="legend-star">*</span> “Mentions” and “filed in” connections are many, so they are hidden until you point at a page or choose one.</p>
+              <button type="button" class="map-btn key-toggle" id="edges-all" aria-pressed="false">Show all “mentions” and “filed in” connections</button>
             </div>
           </div>
         </div>
@@ -386,13 +386,13 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
         </div>
         <div class="panel-body">
           <p class="map-help" data-views="map buyers jobs glance">
-            Choose a view above the drawing; the left and right arrow keys move between them. Point at a page to light it and its named connections, and choose it to select it and list them. In the drawing, Tab reaches the pages and the arrow keys move from one to the next; Enter chooses and Escape clears.
+            Choose a view above the drawing; the left and right arrow keys move between them. Point at a page to light it and its named connections, and choose it to select it and list them. In the drawing, Tab reaches the pages and the arrow keys move from one to the next; Enter chooses and Escape clears. In How a job runs, choose a job or a step to light its path.
           </p>
           <p class="map-help" data-views="map">
             On the whole map, drag to move and scroll or pinch to zoom, or use the buttons; with the drawing focused, plus and minus zoom and 0 fits it again. More names appear as you zoom in.
           </p>
           <p class="map-help" id="map-help" data-views="network" hidden>
-            Drag to move and scroll to zoom, or use the buttons. Choose a point to select it and list its connections. With the map focused, the arrow keys move it, plus and minus zoom, 0 fits the whole map and Escape clears the selection. In the 3D view, dragging turns the map; hold shift to move it.
+            Drag to move and scroll to zoom, or use the buttons. Choose a page to select it and list its connections. With the map focused, the arrow keys move it, plus and minus zoom, 0 fits the whole map and Escape clears the selection. In the 3D view, dragging turns the map; hold shift to move it.
           </p>
         </div>
       </section>
@@ -408,7 +408,7 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
         <label for="map-search">Find a page on the map</label>
         <input type="search" id="map-search" class="input" autocomplete="off" spellcheck="false" />
       </div>
-      <p class="mono list-count" id="list-count">{graph.nodes.length} pages, grouped by kind</p>
+      <p class="mono list-count" id="list-count">{graph.nodes.length === 1 ? '1 page' : `${graph.nodes.length} pages`}, grouped by kind</p>
       <div class="list-groups">
         {groups.map((g) => (
           <div class="list-group" data-kind={g.kind}>
