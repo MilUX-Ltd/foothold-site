@@ -45,7 +45,7 @@ export function connectionsOf(graph: Graph, id: string): Connections {
 /** Plain words for an edge type, read from the node whose connections are shown. */
 export function typeLabel(type: string, direction: 'outgoing' | 'incoming'): string {
   const words: Record<string, [string, string]> = {
-    parent: ['inside folder', 'holds folder'],
+    parent: ['part of', 'has part'],
     in_folder: ['filed in', 'holds page'],
     mentions: ['mentions', 'mentioned by'],
     customer: ['customer', 'customer of'],
