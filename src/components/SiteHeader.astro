@@ -1,12 +1,18 @@
 ---
 // The top bar on every page: the Foothold mark and name, linking home, and the site navigation.
+// "Install" joins it only once the release file names a release: a link to a page that says
+// "not yet" would disappoint. The install page itself is built in both states.
+import { hasRelease, loadRelease } from '../lib/release';
+
 const here = Astro.url.pathname;
+const released = hasRelease(loadRelease());
 ---
 <header class="topbar">
   <a class="brand" href="/" aria-label="Foothold, home"><img src="/brand/foothold-mark.svg" alt="" width="30" height="26" /><b>Foothold</b></a>
   <nav class="site-nav" aria-label="Site">
     <ul>
       <li><a href="/map/" aria-current={here.startsWith('/map') ? 'page' : undefined}>Map</a></li>
+      {released && <li><a href="/install/" aria-current={here.startsWith('/install') ? 'page' : undefined}>Install</a></li>}
     </ul>
   </nav>
 </header>

@@ -29,6 +29,9 @@
 - **View state**: what the map page holds in its address so a view can be shared: `view` (the view shown; `map` is the default and is not written; the network in 3D is written `view=3d`, and the earlier `view=2d` and `view=3d` are read as the network, flat or in 3D; an unknown view falls back to the whole map), `node` (the selected node's id), `from` and `to` (the ends of a path), and `route` and `step` (the job open on the map and the step shown, counting from 1). Ids the map does not hold are ignored; an unknown route is dropped with its step, a step outside the route's range is dropped and the route kept, and a job is dropped when the address holds both ends of a path.
 - **Job**: a route opened on the map from the Jobs panel or a "See it on the map" link. Shown whole, it lights the route, its skills and every folder they read or write. At a step, it lights that skill and its folders strongly, the defence pages filed in those folders softly, and the job's other steps faintly. A skill that reads the whole vault lights the vault mark and no folders for that read. When a step reads or writes the folder the example business is filed in, the example business is lit and named. Worked out in `src/lib/graph/routes.ts`.
 - **Connector**: a read-only service, planned for a later card, that lets a person's own AI tool look things up in the map. It returns structured fields from the map file and never skill files or instructions. See `docs/adr/0005-a-read-only-connector-with-no-model-behind-it.md`.
+- **Release**: a tagged release of the pack, `vX.Y.Z`, holding `foothold-X.Y.Z.zip` and `SHA256SUMS.txt` (the zip's checksum). Built by the pack's pipeline, never by hand. See `docs/adr/0006-install-by-zip-or-github-from-tagged-releases.md`.
+- **Release file**: `data/release.json` in this repository: the release the install page offers, or a statement that there is none yet. It is the second, separate place a release's checksum is recorded; it changes only by a reviewed pull request.
+- **Install page**: `/install/`, the two routes to the release (download the zip, or a prompt that asks an AI tool to fetch it) with what you need and what you will have. Built in both states; with no release yet it says so and offers no button and no prompt. "Install" in the top bar and "Get Foothold" on the home page appear only once there is a release.
 - **Fixture**: a small hand-made map file in `tests/fixtures/` that tests and CI build from, so they never touch the network.
 
 ## The data contract
@@ -70,6 +73,19 @@ The site accepts major version 1 of `schema_version`. Minor and patch changes to
 
 The map page builds its list, legend and path choices from the checked file at build time. Its viewer fetches `/map/graph.json`, which the build writes from the same checked file: each node's `id`, `name`, `kind`, `layer` and position, and each edge's ends and `type`. No other field reaches the browser through it. Edge types the viewer has no style for are drawn with a plain dashed line and still listed. The routes reach the browser in the page itself, not in that file: the Jobs panel carries each route's id, name and steps (skill id, skill name and the pack's sentence) in an inert `<template>`, built from the same checked file.
 
+### The release file
+
+`data/release.json` is checked by `src/lib/release-schema.mjs`. It holds one of two forms, and nothing else; any other key, or any other form, stops the build.
+
+| Form | Fields |
+|---|---|
+| No release yet | `{ "status": "none" }` |
+| A release | `status` `"released"`; `version` as `major.minor.patch`; `zip`, exactly `https://github.com/MilUX-Ltd/foothold/releases/download/v<version>/foothold-<version>.zip`; `sha256`, 64 lower-case hexadecimal characters; `size_bytes`, a whole number above nought |
+
+When the file names a release, `scripts/fetch-data.mjs` fetches `SHA256SUMS.txt` from the same release (the same tag, beside the zip) and compares the line naming the zip with `sha256`. If they differ, if the list does not name the zip, or if it cannot be fetched, the build stops. The comparison is a pure function (`compareChecksum`); the fetch is a thin wrapper (`scripts/release-check.mjs`). The checked copy goes to `.foothold/release.json`, which the pages read. The page shows the version, size and checksum from the committed file, never from the fetched list.
+
+With `FOOTHOLD_RELEASE_SOURCE=fixture` the build reads `tests/fixtures/release.json` and compares it with `tests/fixtures/release-SHA256SUMS.txt`, touching no network. `FOOTHOLD_DATA_SOURCE=fixture` governs only the map file: a fixture build of the committed state still checks a real release against its published checksum.
+
 ### What the site shows
 
-The site shows only what the pack contains. It shows no organisation, programme, skill or route that is not in the map file, no person, and no content written into the site that an install of the pack lacks, other than the pages that explain the site itself. Counts, names and step text on a page are drawn from the file at build time; nothing is typed in by hand.
+The site shows only what the pack contains. It shows no organisation, programme, skill or route that is not in the map file, no person, and no content written into the site that an install of the pack lacks, other than the pages that explain the site itself (the install page is one). Counts, names and step text on a page are drawn from the file at build time; nothing is typed in by hand.

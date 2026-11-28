@@ -1,0 +1,79 @@
+---
+// The install page: two routes to the same tagged release, what you need, the
+// first evening and what you will have. The version, size, address and
+// checksum come from the checked release file (src/lib/release.ts), never from
+// what the build fetched. With no release yet, the page says so and offers no
+// button and no prompt. Wording: the proposal awaiting approval.
+import '../../styles/install.css';
+import Base from '../../layouts/Base.astro';
+import CopyPrompt from '../../components/CopyPrompt.astro';
+import { hasRelease, installPrompt, loadRelease, releaseSize } from '../../lib/release';
+
+const release = loadRelease();
+const released = hasRelease(release);
+const steps = [
+  'Unzip the download.',
+  'Give your AI tool the Start Here file and say "set Foothold up for me".',
+  'Answer six short questions. Your vault is ready in a few minutes; telling it about your business can follow.',
+  'Open the new folder in your notes app.',
+];
+---
+<Base title="Foothold: install" description="Get Foothold as a zip or ask your AI tool to fetch it. Free, with no sign-up.">
+  <header class="page-hero install-hero">
+    <h1>Make it yours<span class="stop">.</span></h1>
+    <p class="lede">Foothold is free. Take a copy, hand it to your AI tool, and it becomes your business's own. No sign-up.</p>
+  </header>
+
+  {released ? (
+    <div class="install-routes">
+      <section class="card install-route" aria-labelledby="route-zip">
+        <div class="card-head"><h2 id="route-zip">Download the zip</h2></div>
+        <div class="card-pad install-route-body">
+          <p>Unzip it somewhere your AI tool can read and write files, then give your AI tool the Start Here file inside.</p>
+          <p class="install-meta" id="install-zip-note">{releaseSize(release)} · SHA-256 <code>{release.sha256}</code></p>
+          <p class="install-action"><a class="btn btn-primary install-download" href={release.zip}>Download Foothold {release.version}</a></p>
+        </div>
+      </section>
+      <section class="card install-route" aria-labelledby="route-prompt">
+        <div class="card-head"><h2 id="route-prompt">Or ask your AI tool to fetch it</h2></div>
+        <div class="card-pad install-route-body">
+          <p>Paste this into your AI tool. It downloads the same zip and checks it before it opens it.</p>
+          <CopyPrompt prompt={installPrompt(release)} />
+        </div>
+      </section>
+    </div>
+  ) : (
+    <div class="note install-not-yet">
+      <p>The first release is on its way. Until then you can <a href="/map/">look around the map</a>.</p>
+    </div>
+  )}
+
+  <div class="install-details">
+    <section class="install-need" aria-labelledby="need-heading">
+      <h2 id="need-heading">What you need</h2>
+      <p>An AI tool that can read and write files in a folder on your computer. A notes app that opens a folder of Markdown files is useful for reading your vault; Obsidian is free and is the one we use.</p>
+    </section>
+
+    <section class="card install-evening" aria-labelledby="evening-heading">
+      <div class="card-head"><h2 id="evening-heading">Your first evening</h2></div>
+      <ol class="route-steps">
+        {steps.map((step) => <li class="route-step"><p class="route-does">{step}</p></li>)}
+      </ol>
+      <p class="install-evening-note">Setup asks before it writes anything. Nothing is sent anywhere by Foothold; your AI tool sends what it always sends to whoever provides it.</p>
+    </section>
+
+    <section class="install-have" aria-labelledby="have-heading">
+      <h2 id="have-heading">What you will have</h2>
+      <p>Your own copy of <a href="/map/">everything on the map</a>: the folders, the skills that do the jobs, and the defence reference, with your business written into it.</p>
+    </section>
+
+    {released && (
+      <section class="install-checking" aria-labelledby="checking-heading">
+        <h2 id="checking-heading">Checking your download</h2>
+        <p>The checksum above is recorded here separately from the download. If the checksum of your zip matches it, you have the file we released.</p>
+      </section>
+    )}
+  </div>
+
+  <p class="install-uses">MilUX runs Foothold with Claude, and with OpenWork on locally hosted models.</p>
+</Base>
