@@ -5,7 +5,7 @@ import astro from 'eslint-plugin-astro';
 
 export default tseslint.config(
   {
-    ignores: ['dist/', '.astro/', '.wrangler/', 'node_modules/', 'playwright-report/', 'test-results/', '.claude/', '.foothold/'],
+    ignores: ['dist/', 'dist-release/', '.astro/', '.wrangler/', 'node_modules/', 'playwright-report/', 'test-results/', '.claude/', '.foothold/'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

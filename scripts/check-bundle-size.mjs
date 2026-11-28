@@ -63,9 +63,11 @@ function walk(dir) {
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop());
 if (isMain) {
-  const dist = new URL('../dist/', import.meta.url).pathname;
+  // The same output folder the build wrote (astro.config.mjs): dist/, or dist-release/ for the tests' second build.
+  const outDir = process.env.FOOTHOLD_OUT_DIR || 'dist';
+  const dist = new URL(`../${outDir}/`, import.meta.url).pathname;
   if (!existsSync(dist)) {
-    console.error('Bundle-size check could not find dist/; run the build first.');
+    console.error(`Bundle-size check could not find ${outDir}/; run the build first.`);
     process.exit(1);
   }
   const files = walk(dist).map((file) => ({ file, rel: file.slice(dist.length) }));

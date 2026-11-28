@@ -1,0 +1,67 @@
+/* The install page (src/pages/install/index.astro). Built from the shared
+   pieces in base.css: the page hero, cards, buttons, the note and the
+   numbered steps the home page's jobs use. */
+
+.install-hero { margin-bottom: 36px; }
+.install-hero .lede { max-width: 34em; }
+
+/* The two routes, side by side on a wide screen. Each card reads the same way:
+   a sentence, a grey box (the size and checksum, or the prompt), then the
+   button, held to the foot of the card so the two buttons line up. */
+.install-routes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+.install-route { display: flex; flex-direction: column; }
+.install-route .card-head h2 { font-size: 24px; }
+.install-route-body { display: flex; flex: 1 0 auto; flex-direction: column; }
+.install-route-body > p:first-child { margin: 0 0 16px; }
+.install-action { margin: auto 0 0; padding-top: 20px; }
+.install-copy, .install-download { min-width: 13.5rem; }
+.install-copy[data-copied] { box-shadow: inset 0 -3px 0 var(--signal); }
+
+/* The grey boxes: the size and checksum, and the prompt. Long values wrap
+   rather than widening the page. */
+.install-meta, .install-prompt { margin: 0; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); overflow-wrap: anywhere; }
+.install-meta { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+/* The checksum as a fingerprint: two rows of 32 characters on a wide card. */
+.install-meta code { display: block; width: 32ch; max-width: 100%; margin-top: 4px; font-size: 13.5px; line-height: 1.65; color: var(--ink); }
+.install-prompt { font-family: var(--font-mono); font-weight: 500; font-size: 13.5px; line-height: 1.65; color: var(--ink); border-left: 3px solid var(--forest); user-select: all; }
+
+/* No release yet. */
+.install-not-yet { max-width: 46rem; padding: 18px 22px; box-shadow: var(--shadow-card); }
+.install-not-yet p { font-size: 17px; font-weight: 600; }
+.install-not-yet a { font-weight: 800; }
+
+/* What you need, the first evening, what you will have and checking. */
+.install-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px 48px; margin-top: 48px; }
+.install-details > section > h2 { margin: 0 0 10px; font-size: 22px; }
+.install-details > section:not(.card) { padding-top: 16px; border-top: 1.5px solid var(--ink); }
+.install-details > section:not(.card) p { margin: 0 0 24px; max-width: 36em; }
+.install-evening { margin: 8px 0 24px; }
+.install-evening .card-head h2 { font-size: 22px; }
+.install-evening .route-step { padding-top: 12px; padding-bottom: 12px; }
+.install-evening .route-does { color: var(--ink); }
+.install-evening-note { margin: 0; padding: 13px 18px 15px; border-top: 1px solid var(--line); background: var(--paper); font-size: 14.5px; color: var(--ink-2); }
+
+/* What we use: a quiet closing line. */
+.install-uses { margin: 24px 0 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--ink-3); }
+
+@media (min-width: 62rem) {
+  .install-routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .install-details {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-areas: 'need evening' 'have evening' 'checking evening' '. evening';
+    align-items: start;
+  }
+  .install-need { grid-area: need; }
+  .install-have { grid-area: have; }
+  .install-checking { grid-area: checking; }
+  .install-evening { grid-area: evening; margin-top: 0; }
+}
+
+@media (max-width: 760px) {
+  .install-hero { margin-bottom: 28px; }
+  .install-route-body .btn { width: 100%; }
+  .install-route .card-head h2 { font-size: 22px; }
+  .install-details { margin-top: 36px; }
+  .install-prompt, .install-meta, .install-meta code { font-size: 13px; }
+  .install-prompt, .install-meta { padding: 12px 14px; }
+}

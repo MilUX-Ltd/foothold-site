@@ -1,0 +1,19 @@
+---
+// The install prompt, as text a visitor can select, with a copy button that
+// only appears when script can work it (src/scripts/install/copy.ts). Rendered
+// only when there is a release, so the "no release yet" page ships no script.
+interface Props {
+  prompt: string;
+}
+const { prompt } = Astro.props;
+---
+<p class="install-prompt" id="install-prompt">{prompt}</p>
+<p class="install-action">
+  <button type="button" class="btn btn-secondary install-copy" id="install-copy" hidden>Copy the prompt</button>
+</p>
+<p class="vh" id="install-copy-status" role="status" aria-live="polite"></p>
+
+<script>
+  import { startCopy } from '../scripts/install/copy';
+  startCopy();
+</script>

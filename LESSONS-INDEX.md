@@ -17,3 +17,4 @@
 | 2026-11-27 | Map panels | A hub node lists dozens of connections; cap and scroll the panels or the map leaves the screen |
 | 2026-11-27 | Playwright and aria-disabled | Playwright will not press an aria-disabled button without `force` |
 | 2026-11-27 | Labels on a lit job | A step can light hundreds of pages; label only the larger, keep lit labels clear |
+| 2026-11-28 | Two builds in the tests | Preview serves the config's output folder; Playwright starts web servers in order |

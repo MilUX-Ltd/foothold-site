@@ -23,6 +23,7 @@ import { isQuietType } from '../lib/graph/edge-filter';
 import { DRAWN_VIEWS, VIEW_LABELS } from '../lib/graph/view-common';
 import { mapScene, narrowTreeScene, RELATION_WORDS } from '../lib/graph/view-scenes';
 import { sceneProblems } from '../lib/graph/view-scene';
+import { hasRelease, loadRelease } from '../lib/release';
 
 interface Props {
   /** Open in the landing state, with the headline over the map. */
@@ -35,6 +36,8 @@ const graph = buildGraph(map);
 const groups = groupByKind(graph);
 const routes = listRoutes(map);
 const summary = facts(map);
+// The headline's second button leads to the install page once there is a release to offer.
+const released = hasRelease(loadRelease());
 const strip = [
   { label: 'Defence pages', value: summary.defencePages.toLocaleString('en-GB') },
   { label: 'Skills', value: summary.skills.toLocaleString('en-GB') },
@@ -84,7 +87,11 @@ const mapLines = ['parent', 'customer', 'operator', 'service', 'reads', 'writes'
       </p>
       <div class="lead-actions">
         <button type="button" class="btn btn-primary needs-script" id="explore">Explore the map</button>
-        <a class="btn btn-secondary" href="https://github.com/MilUX-Ltd/foothold">Get the pack on GitHub</a>
+        {released ? (
+          <a class="btn btn-secondary" href="/install/">Get Foothold</a>
+        ) : (
+          <a class="btn btn-secondary" href="https://github.com/MilUX-Ltd/foothold">Get the pack on GitHub</a>
+        )}
       </div>
       <dl class="facts" aria-label="What is in the pack">
         {strip.map((fact) => <div><dt class="mono">{fact.label}</dt><dd>{fact.value}</dd></div>)}
